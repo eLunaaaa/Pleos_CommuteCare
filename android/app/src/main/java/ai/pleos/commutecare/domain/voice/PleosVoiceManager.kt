@@ -1,25 +1,35 @@
 /**
  * @file PleosVoiceManager.kt
- * @brief Pleos Playground TextToSpeech SDK 기반 차량 음성 안내 및 로컬 TTS 하이브리드 폴백 매니저
+ * @brief Pleos Playground TextToSpeech(TTS) 및 SpeechToText(STT) 3.3.1 SDK 기반 음성 양방향 대화 및 하이브리드 폴백 매니저
  *
  * [주요 동작 흐름]
- * 1. 현대자동차 Pleos Connect 생태계의 공식 TextToSpeech SDK(ai.pleos.playground.tts.TextToSpeech) 초기화
- * 2. CaaS On-Device TTS 엔진 바인딩 시도 및 상태 리스너 등록
- * 3. 온디바이스 엔진 미지원 또는 네트워크 장애 시 안드로이드 표준 TTS(android.speech.tts.TextToSpeech)로 자동 하이브리드 폴백
- * 4. 주행 소음 마스킹 및 IVI 안내 음성 큐잉/플러시 제어 및 재생 완료 이벤트 전파
+ * 1. 현대자동차 Pleos Connect 공식 TTS SDK(3.3.1) 및 STT SDK(3.3.1) 초기화
+ * 2. CaaS On-Device 음성 합성/인식 엔진 바인딩 시도 및 상태 리스너 등록
+ * 3. 온디바이스 엔진 미지원 또는 장애 시 Android 표준 TTS 및 SpeechRecognizer로 자동 하이브리드 폴백
+ * 4. 음성 브리핑/안내 발화 및 운전자 음성 명령("출근 준비", "뉴스 요약", "온도 조절", "여행 모드") 실시간 인식
  */
 
 package ai.pleos.commutecare.domain.voice
 
+import ai.pleos.playground.stt.SpeechToText as PleosStt
+import ai.pleos.playground.stt.constant.ErrorType as SttErrorType
+import ai.pleos.playground.stt.constant.Mode as SttMode
+import ai.pleos.playground.stt.listener.OnInitializeListener as OnSttInitListener
+import ai.pleos.playground.stt.listener.ResultListener as SttResultListener
 import ai.pleos.playground.tts.TextToSpeech as PleosTts
-import ai.pleos.playground.tts.constant.ErrorType
-import ai.pleos.playground.tts.constant.Mode
-import ai.pleos.playground.tts.listener.EventListener
-import ai.pleos.playground.tts.listener.OnInitializeListener
+import ai.pleos.playground.tts.constant.ErrorType as TtsErrorType
+import ai.pleos.playground.tts.constant.Mode as TtsMode
+import ai.pleos.playground.tts.listener.EventListener as TtsEventListener
+import ai.pleos.playground.tts.listener.OnInitializeListener as OnTtsInitListener
 import android.content.Context
+import android.content.Intent
 import android.media.AudioAttributes
+import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.speech.RecognitionListener
+import android.speech.RecognizerIntent
+import android.speech.SpeechRecognizer
 import android.speech.tts.TextToSpeech as AndroidTts
 import android.speech.tts.UtteranceProgressListener
 import android.util.Log
@@ -35,60 +45,73 @@ class PleosVoiceManager(private val context: Context) {
 
     private val mainHandler = Handler(Looper.getMainLooper())
 
-    // Pleos SDK TTS 엔진
+    // ----------------------------------------------------
+    // TTS (Text-to-Speech)
+    // ----------------------------------------------------
     private var pleosTts: PleosTts? = null
     private var isPleosTtsReady: Boolean = false
-
-    // 로컬 하이브리드 폴백용 Android 기본 TTS 엔진
     private var fallbackTts: AndroidTts? = null
-    private var isFallbackReady: Boolean = false
+    private var isFallbackTtsReady: Boolean = false
 
-    // 현재 발화 중 여부
     var isSpeaking: Boolean = false
         private set
 
-    // 음성 발화 상태 콜백 리스너
+    // ----------------------------------------------------
+    // STT (Speech-to-Text)
+    // ----------------------------------------------------
+    private var pleosStt: PleosStt? = null
+    private var isPleosSttReady: Boolean = false
+    private var fallbackSpeechRecognizer: SpeechRecognizer? = null
+    private var isFallbackSttReady: Boolean = false
+
+    var isListening: Boolean = false
+        private set
+
+    // ----------------------------------------------------
+    // 콜백 리스너
+    // ----------------------------------------------------
     var onSpeechStateChangeListener: ((isSpeaking: Boolean, text: String?) -> Unit)? = null
+    var onListeningStateChangeListener: ((isListening: Boolean, partialText: String?) -> Unit)? = null
+    var onVoiceCommandRecognizedListener: ((commandText: String) -> Unit)? = null
 
     init {
-        initializeEngines()
+        initializeTtsEngine()
+        initializeSttEngine()
     }
+
+    // ====================================================
+    // TTS 구현부
+    // ====================================================
 
     /**
      * @brief Pleos TTS 엔진 및 로컬 백업 폴백 엔진을 초기화합니다.
      */
-    private fun initializeEngines() {
+    private fun initializeTtsEngine() {
         Log.i(TAG, "Initializing Pleos TextToSpeech SDK (Mode.ON_DEVICE)...")
         try {
-            val tts = PleosTts(context, Mode.ON_DEVICE)
-
-            // initialize()를 먼저 호출해야 내부 TtsServiceManager 인스턴스가 연결됨
-            tts.initialize(object : OnInitializeListener {
+            val tts = PleosTts(context, TtsMode.ON_DEVICE)
+            tts.initialize(object : OnTtsInitListener {
                 override fun onSuccess() {
                     Log.i(TAG, "[PleosTTS] Pleos TextToSpeech SDK successfully initialized.")
                     try {
-                        tts.addEventListener(object : EventListener {
+                        tts.addEventListener(object : TtsEventListener {
                             override fun onStart() {
-                                Log.d(TAG, "[PleosTTS] onStart")
                                 mainHandler.post {
                                     isSpeaking = true
                                     onSpeechStateChangeListener?.invoke(true, null)
                                 }
                             }
 
-                            override fun onReady() {
-                                Log.d(TAG, "[PleosTTS] onReady")
-                            }
+                            override fun onReady() {}
 
                             override fun onDone() {
-                                Log.d(TAG, "[PleosTTS] onDone")
                                 mainHandler.post {
                                     isSpeaking = false
                                     onSpeechStateChangeListener?.invoke(false, null)
                                 }
                             }
 
-                            override fun onError(errorType: ErrorType) {
+                            override fun onError(errorType: TtsErrorType) {
                                 Log.w(TAG, "[PleosTTS] onError: $errorType")
                                 mainHandler.post {
                                     isSpeaking = false
@@ -97,16 +120,13 @@ class PleosVoiceManager(private val context: Context) {
                             }
 
                             override fun onStop() {
-                                Log.d(TAG, "[PleosTTS] onStop")
                                 mainHandler.post {
                                     isSpeaking = false
                                     onSpeechStateChangeListener?.invoke(false, null)
                                 }
                             }
 
-                            override fun onUpdatedRms(rms: Double) {
-                                // 음성 파형 레벨 실시간 모니터링 (UI 비주얼라이저 연동 가능)
-                            }
+                            override fun onUpdatedRms(rms: Double) {}
                         })
 
                         val audioAttributes = AudioAttributes.Builder()
@@ -116,18 +136,17 @@ class PleosVoiceManager(private val context: Context) {
                         tts.setAudioAttributes(audioAttributes)
                         tts.setLocale(Locale.KOREAN)
                     } catch (e: Exception) {
-                        Log.w(TAG, "Failed to apply attributes post-init", e)
+                        Log.w(TAG, "Failed to apply TTS attributes post-init", e)
                     }
                     isPleosTtsReady = true
                 }
 
-                override fun onFailure(errorType: ErrorType) {
+                override fun onFailure(errorType: TtsErrorType) {
                     Log.w(TAG, "[PleosTTS] Initialization failed ($errorType). Activating fallback Android TTS.")
                     isPleosTtsReady = false
                     initFallbackTts()
                 }
             })
-
             pleosTts = tts
         } catch (e: Exception) {
             Log.e(TAG, "Failed to instantiate PleosTts, activating local fallback", e)
@@ -135,13 +154,8 @@ class PleosVoiceManager(private val context: Context) {
         }
     }
 
-    /**
-     * @brief 하이브리드 가용성을 위한 로컬 Android 기본 TTS 엔진을 초기화합니다.
-     */
     private fun initFallbackTts() {
-        if (fallbackTts != null || isFallbackReady) return
-        Log.i(TAG, "Initializing Android Standard TTS Fallback...")
-
+        if (fallbackTts != null || isFallbackTtsReady) return
         val initListener = AndroidTts.OnInitListener { status ->
             if (status == AndroidTts.SUCCESS) {
                 fallbackTts?.language = Locale.KOREAN
@@ -168,26 +182,24 @@ class PleosVoiceManager(private val context: Context) {
                         }
                     }
                 })
-                isFallbackReady = true
+                isFallbackTtsReady = true
                 Log.i(TAG, "Android Standard TTS Fallback successfully initialized.")
             } else {
-                Log.w(TAG, "Android Standard TTS Fallback initialization status: $status")
-                isFallbackReady = false
+                isFallbackTtsReady = false
             }
         }
 
         try {
             fallbackTts = AndroidTts(context, initListener, PLEOS_CAAS_PACKAGE)
         } catch (e: Exception) {
-            Log.w(TAG, "Failed to initialize TTS with $PLEOS_CAAS_PACKAGE, using default", e)
             fallbackTts = AndroidTts(context, initListener)
         }
     }
 
     /**
      * @brief 텍스트를 음성으로 변환하여 차량 오디오 시스템으로 출력합니다.
-     * @param text 음성으로 출력할 텍스트 문구
-     * @param isFlush true일 경우 기존 음성을 중단하고 즉시 새 문구를 출력하며, false일 경우 대기열에 추가합니다.
+     * @param text 음성 출력할 문구
+     * @param isFlush true일 경우 기존 음성을 중단하고 즉시 새 문구를 출력합니다.
      */
     fun speak(text: String, isFlush: Boolean = true) {
         if (text.isBlank()) return
@@ -206,37 +218,29 @@ class PleosVoiceManager(private val context: Context) {
             }
         }
 
-        // Pleos TTS 사용 불가 시 Android 기본 TTS로 폴백
-        if (!isFallbackReady) {
+        if (!isFallbackTtsReady) {
             initFallbackTts()
         }
 
-        if (isFallbackReady && fallbackTts != null) {
+        if (isFallbackTtsReady && fallbackTts != null) {
             val queueMode = if (isFlush) AndroidTts.QUEUE_FLUSH else AndroidTts.QUEUE_ADD
             val utteranceId = "$UTTERANCE_ID_PREFIX${System.currentTimeMillis()}"
             fallbackTts?.speak(text, queueMode, null, utteranceId)
-        } else {
-            Log.w(TAG, "Both Pleos TTS and Fallback TTS are not ready yet.")
         }
     }
 
     /**
-     * @brief 현재 출력 중인 음성을 즉시 중단합니다.
+     * @brief 현재 출력 중인 음성을 중단합니다.
      */
-    fun stop() {
-        Log.d(TAG, "stop() called")
+    fun stopSpeaking() {
         try {
-            if (isPleosTtsReady) {
-                pleosTts?.stop()
-            }
+            if (isPleosTtsReady) pleosTts?.stop()
         } catch (e: Exception) {
             Log.w(TAG, "Error stopping PleosTts", e)
         }
 
         try {
-            if (isFallbackReady) {
-                fallbackTts?.stop()
-            }
+            if (isFallbackTtsReady) fallbackTts?.stop()
         } catch (e: Exception) {
             Log.w(TAG, "Error stopping FallbackTts", e)
         }
@@ -247,26 +251,246 @@ class PleosVoiceManager(private val context: Context) {
         }
     }
 
+    // ====================================================
+    // STT (음성 인식) 구현부
+    // ====================================================
+
     /**
-     * @brief 액티비티 종료 시 오디오 및 TTS 서비스 바인딩 자원을 해제합니다.
+     * @brief Pleos SpeechToText SDK 및 로컬 폴백 음성 인식기를 초기화합니다.
+     */
+    private fun initializeSttEngine() {
+        Log.i(TAG, "Initializing Pleos SpeechToText SDK (Mode.ON_DEVICE)...")
+        try {
+            val stt = PleosStt(context, SttMode.ON_DEVICE)
+            stt.initialize(object : OnSttInitListener {
+                override fun onSuccess() {
+                    Log.i(TAG, "[PleosSTT] Pleos SpeechToText SDK successfully initialized.")
+                    try {
+                        stt.addListener(object : SttResultListener {
+                            override fun onStartedRecognition() {
+                                Log.d(TAG, "[PleosSTT] onStartedRecognition")
+                                mainHandler.post {
+                                    isListening = true
+                                    onListeningStateChangeListener?.invoke(true, "마이크 청취 중...")
+                                }
+                            }
+
+                            override fun onUpdated(text: String, isFinal: Boolean) {
+                                Log.d(TAG, "[PleosSTT] onUpdated: text='$text', isFinal=$isFinal")
+                                mainHandler.post {
+                                    onListeningStateChangeListener?.invoke(true, text)
+                                    if (isFinal && text.isNotBlank()) {
+                                        isListening = false
+                                        onListeningStateChangeListener?.invoke(false, text)
+                                        onVoiceCommandRecognizedListener?.invoke(text)
+                                    }
+                                }
+                            }
+
+                            override fun onEndedRecognition() {
+                                Log.d(TAG, "[PleosSTT] onEndedRecognition")
+                                mainHandler.post {
+                                    isListening = false
+                                    onListeningStateChangeListener?.invoke(false, null)
+                                }
+                            }
+
+                            override fun onError(errorType: SttErrorType) {
+                                Log.w(TAG, "[PleosSTT] onError: $errorType")
+                                mainHandler.post {
+                                    isListening = false
+                                    onListeningStateChangeListener?.invoke(false, null)
+                                }
+                            }
+
+                            override fun onReady() {
+                                Log.d(TAG, "[PleosSTT] onReady")
+                            }
+
+                            override fun onUpdatedRms(rms: Double) {}
+
+                            override fun onUpdatedEpdData(startMs: Long, endMs: Long) {}
+                        })
+                        stt.setLocale(Locale.KOREAN)
+                    } catch (e: Exception) {
+                        Log.w(TAG, "Failed to setup STT listener post-init", e)
+                    }
+                    isPleosSttReady = true
+                }
+
+                override fun onFailure(errorType: SttErrorType) {
+                    Log.w(TAG, "[PleosSTT] Initialization failed ($errorType). Activating fallback SpeechRecognizer.")
+                    isPleosSttReady = false
+                    initFallbackStt()
+                }
+            })
+            pleosStt = stt
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to instantiate PleosStt, activating local fallback", e)
+            initFallbackStt()
+        }
+    }
+
+    private fun initFallbackStt() {
+        mainHandler.post {
+            if (fallbackSpeechRecognizer != null || isFallbackSttReady) return@post
+            if (!SpeechRecognizer.isRecognitionAvailable(context)) {
+                Log.w(TAG, "Android SpeechRecognizer is not available on this device.")
+                return@post
+            }
+
+            try {
+                fallbackSpeechRecognizer = SpeechRecognizer.createSpeechRecognizer(context).apply {
+                    setRecognitionListener(object : RecognitionListener {
+                        override fun onReadyForSpeech(params: Bundle?) {
+                            isListening = true
+                            onListeningStateChangeListener?.invoke(true, "마이크 청취 중...")
+                        }
+
+                        override fun onBeginningOfSpeech() {}
+                        override fun onRmsChanged(rmsdB: Float) {}
+                        override fun onBufferReceived(buffer: ByteArray?) {}
+                        override fun onEndOfSpeech() {
+                            isListening = false
+                            onListeningStateChangeListener?.invoke(false, null)
+                        }
+
+                        override fun onError(error: Int) {
+                            Log.w(TAG, "[FallbackSTT] onError: $error")
+                            isListening = false
+                            onListeningStateChangeListener?.invoke(false, null)
+                        }
+
+                        override fun onResults(results: Bundle?) {
+                            val matches = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
+                            val recognized = matches?.firstOrNull() ?: ""
+                            Log.i(TAG, "[FallbackSTT] onResults: \"$recognized\"")
+                            isListening = false
+                            onListeningStateChangeListener?.invoke(false, recognized)
+                            if (recognized.isNotBlank()) {
+                                onVoiceCommandRecognizedListener?.invoke(recognized)
+                            }
+                        }
+
+                        override fun onPartialResults(partialResults: Bundle?) {
+                            val matches = partialResults?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
+                            matches?.firstOrNull()?.let { partial ->
+                                onListeningStateChangeListener?.invoke(true, partial)
+                            }
+                        }
+
+                        override fun onEvent(eventType: Int, params: Bundle?) {}
+                    })
+                }
+                isFallbackSttReady = true
+                Log.i(TAG, "Android Fallback SpeechRecognizer successfully initialized.")
+            } catch (e: Exception) {
+                Log.w(TAG, "Error creating fallback SpeechRecognizer", e)
+            }
+        }
+    }
+
+    /**
+     * @brief 운전자의 음성 명령 청취를 시작합니다.
+     */
+    fun startListening() {
+        Log.i(TAG, "startListening() called (pleosSttReady=$isPleosSttReady)")
+
+        // 음성 안내 발화 중이라면 먼저 중단하여 에코 캔슬링 효과 보장
+        stopSpeaking()
+
+        if (isPleosSttReady && pleosStt != null) {
+            try {
+                pleosStt?.request()
+                isListening = true
+                mainHandler.post {
+                    onListeningStateChangeListener?.invoke(true, "말씀해 주세요...")
+                }
+                return
+            } catch (e: Exception) {
+                Log.e(TAG, "Error invoking pleosStt.request()", e)
+            }
+        }
+
+        // 로컬 SpeechRecognizer 폴백
+        mainHandler.post {
+            if (!isFallbackSttReady) initFallbackStt()
+            try {
+                val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+                    putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+                    putExtra(RecognizerIntent.EXTRA_LANGUAGE, Locale.KOREAN.toString())
+                    putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
+                }
+                fallbackSpeechRecognizer?.startListening(intent)
+                isListening = true
+                onListeningStateChangeListener?.invoke(true, "말씀해 주세요 (Android STT)...")
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to start listening on fallback STT", e)
+            }
+        }
+    }
+
+    /**
+     * @brief 음성 청취를 중단합니다.
+     */
+    fun stopListening() {
+        Log.d(TAG, "stopListening() called")
+        try {
+            if (isPleosSttReady) pleosStt?.stop()
+        } catch (e: Exception) {
+            Log.w(TAG, "Error stopping Pleos STT", e)
+        }
+
+        try {
+            fallbackSpeechRecognizer?.stopListening()
+        } catch (e: Exception) {
+            Log.w(TAG, "Error stopping Fallback STT", e)
+        }
+
+        isListening = false
+        mainHandler.post {
+            onListeningStateChangeListener?.invoke(false, null)
+        }
+    }
+
+    /**
+     * @brief 액티비티 종료 시 TTS 및 STT 자원을 안전하게 해제합니다.
      */
     fun release() {
-        Log.i(TAG, "Releasing TTS resources...")
-        stop()
+        Log.i(TAG, "Releasing Pleos Voice resources (TTS + STT)...")
+        stopSpeaking()
+        stopListening()
+
         try {
             pleosTts?.release()
             pleosTts = null
             isPleosTtsReady = false
         } catch (e: Exception) {
-            Log.w(TAG, "Error releasing PleosTts", e)
+            Log.w(TAG, "Error releasing Pleos TTS", e)
         }
 
         try {
             fallbackTts?.shutdown()
             fallbackTts = null
-            isFallbackReady = false
+            isFallbackTtsReady = false
         } catch (e: Exception) {
-            Log.w(TAG, "Error shutting down FallbackTts", e)
+            Log.w(TAG, "Error releasing Fallback TTS", e)
+        }
+
+        try {
+            pleosStt?.release()
+            pleosStt = null
+            isPleosSttReady = false
+        } catch (e: Exception) {
+            Log.w(TAG, "Error releasing Pleos STT", e)
+        }
+
+        try {
+            fallbackSpeechRecognizer?.destroy()
+            fallbackSpeechRecognizer = null
+            isFallbackSttReady = false
+        } catch (e: Exception) {
+            Log.w(TAG, "Error destroying Fallback STT", e)
         }
     }
 }

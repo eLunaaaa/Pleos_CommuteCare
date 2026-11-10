@@ -4,11 +4,11 @@
  *
  * 전체 라이프사이클 및 동작 순서:
  *  1. ViewBinding(ActivityMainBinding) 기반 대화면 2열 프리미엄 대시보드 뷰 팽창
- *  2. Pleos TextToSpeech SDK 및 소음 안심 인터랙티브 터치 패널 초기화
- *  3. Pleos Vehicle SDK (공조/시트/조명) 및 AAOS Car Service 연결 초기화
- *  4. 기상청 초단기실황 API 호출 및 위경도->격자 변환을 통한 실시간 기상 데이터 취득
- *  5. 출퇴근 패턴 학습 엔진(CommutePatternEngine)을 통한 개인화 목표 온도 및 능동 인사 상태 판별
- *  6. 주행 소음 대응: 음성 질문 + 대화면 원터치 퀵 리플라이 카드 동시 노출
+ *  2. Pleos TextToSpeech(TTS) & SpeechToText(STT) SDK 3.3.1 기반 양방향 음성 대화 초기화
+ *  3. Pleos FusedLocation SDK 1.1.3 기반 차량 실시간 위치 추적 및 주기적(10분/거리 이동) 기상청 날씨 동기화
+ *  4. Pleos Vehicle SDK (공조/시트/조명) 및 AAOS Car Service 연결 초기화
+ *  5. 출퇴근 패턴 학습 엔진(CommutePatternEngine)을 통한 개인화 목표 온도 및 능동 인사 판별
+ *  6. 주행 소음 대응: 음성 질문 + STT 마이크 인식 + 대화면 원터치 퀵 리플라이 카드 하이브리드 지원
  *  7. OpenAI GPT-4o-mini 기반 하이브리드 음성 브리핑 생성 및 TTS 실시간 낭독
  *  8. 심리음향학 기반 YouTube Music 트랙 매칭 및 디 올 뉴 그랜저(GN7) 무드램프 색상 동기화
  */
@@ -21,6 +21,7 @@ import android.view.View
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
+import ai.pleos.commutecare.data.location.PleosLocationManager
 import ai.pleos.commutecare.data.weather.KmaWeatherClient
 import ai.pleos.commutecare.data.weather.RealtimeWeather
 import ai.pleos.commutecare.data.weather.WeatherConditionTag
@@ -32,6 +33,7 @@ import ai.pleos.commutecare.domain.audio.AcousticPreset
 import ai.pleos.commutecare.domain.audio.PsychoacousticEngine
 import ai.pleos.commutecare.domain.calendar.CalendarMailManager
 import ai.pleos.commutecare.domain.commute.CommutePrompt
+import ai.pleos.commutecare.domain.commute.LocationPoint
 import ai.pleos.commutecare.domain.commute.SmartCommuteDetector
 import ai.pleos.commutecare.domain.learning.CommutePatternEngine
 import ai.pleos.commutecare.domain.lighting.AmbientLightingEngine
@@ -56,6 +58,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var binding: ActivityMainBinding
     private lateinit var vehicleManager: CommuteVehicleManager
     private lateinit var voiceManager: PleosVoiceManager
+    private lateinit var locationManager: PleosLocationManager
 
     private val commuteDetector = SmartCommuteDetector()
     private val newsEngine = AdaptiveNewsEngine(UserAgeGroup.THIRTIES, UserGender.MALE)
@@ -72,9 +75,10 @@ class MainActivity : AppCompatActivity() {
     private var isTravelModeActive: Boolean = false
     private var latestBriefingText: String = ""
 
-    // Mock Location (Seoul Yangjae)
+    // 실시간 GPS 좌표 (FusedLocation 연동)
     private var currentLat = 37.4640
     private var currentLon = 127.0434
+    private var currentHeading = 0.0f
     private var currentTargetTemp = 22.0f
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -86,16 +90,17 @@ class MainActivity : AppCompatActivity() {
         setupClickListeners()
         patternEngine.seedDemonstrationHistory()
         initVehicleManager()
-        loadRealtimeWeather()
-        checkSmartCommuteIntent()
+        initLocationManager()
     }
 
     /**
-     * @brief Pleos Voice Manager (TTS) 초기화 및 UI 발화 상태 리스너를 등록합니다.
+     * @brief Pleos Voice Manager (TTS & STT) 초기화 및 음성 대화 리스너를 등록합니다.
      * @return Unit
      */
     private fun initVoiceManager() {
         voiceManager = PleosVoiceManager(this)
+
+        // 1. TTS 음성 출력 상태 콜백
         voiceManager.onSpeechStateChangeListener = { isSpeaking, speakingText ->
             runOnUiThread {
                 if (isSpeaking) {
@@ -103,11 +108,131 @@ class MainActivity : AppCompatActivity() {
                     binding.tvVoiceStatus.text = "🔊 [음성 안내 중] Pleos TTS 출력$preview"
                     binding.btnVoiceStop.visibility = View.VISIBLE
                 } else {
-                    binding.tvVoiceStatus.text = "🔈 [음성 대기] Pleos On-Device TTS 엔진 준비 완료 (터치 패널로도 응답 가능)"
-                    binding.btnVoiceStop.visibility = View.GONE
+                    if (!voiceManager.isListening) {
+                        binding.tvVoiceStatus.text = "🔈 [음성 대기] Pleos On-Device TTS/STT 준비 완료"
+                        binding.btnVoiceStop.visibility = View.GONE
+                    }
                 }
             }
         }
+
+        // 2. STT 음성 인식 청취 상태 및 부분 인식 콜백
+        voiceManager.onListeningStateChangeListener = { isListening, partialText ->
+            runOnUiThread {
+                if (isListening) {
+                    binding.tvVoiceStatus.text = "🎙️ [음성 청취 중] ${partialText ?: "말씀해 주세요..."}"
+                    binding.btnVoiceMic.text = "🔴 듣는 중... (터치 시 중단)"
+                    binding.btnVoiceMic.setBackgroundResource(ai.pleos.commutecare.R.drawable.bg_button_orange)
+                } else {
+                    binding.btnVoiceMic.text = "🎤 음성 명령 말하기"
+                    binding.btnVoiceMic.setBackgroundResource(ai.pleos.commutecare.R.drawable.bg_button_blue)
+                    if (!voiceManager.isSpeaking) {
+                        binding.tvVoiceStatus.text = "🔈 [음성 대기] Pleos On-Device TTS/STT 준비 완료"
+                    }
+                }
+            }
+        }
+
+        // 3. STT 최종 인식 음성 명령어 디스패처
+        voiceManager.onVoiceCommandRecognizedListener = { command ->
+            runOnUiThread {
+                handleVoiceCommand(command)
+            }
+        }
+    }
+
+    /**
+     * @brief 운전자의 음성 인식 명령어를 파싱하여 해당 차량/에이전트 기능을 실행합니다.
+     * @param command 인식된 음성 텍스트
+     */
+    private fun handleVoiceCommand(command: String) {
+        val trimmed = command.trim()
+        appendLog("🎙️ 음성 명령 인식: \"$trimmed\"")
+        Toast.makeText(this, "음성 명령: \"$trimmed\"", Toast.LENGTH_SHORT).show()
+
+        when {
+            // 1. 출퇴근 시작 명령
+            trimmed.contains("출근") || trimmed.contains("퇴근") || trimmed.contains("네") || trimmed.contains("시작") -> {
+                val prompt = commuteDetector.evaluateCommuteIntent(currentLat, currentLon)
+                    ?: CommutePrompt(
+                        commuteType = currentCommuteMode,
+                        destination = LocationPoint("현대자동차 양재 본사", currentLat, currentLon),
+                        message = "맞춤 출근 루틴을 가동합니다."
+                    )
+                executeCommuteRoutine(prompt)
+                voiceManager.speak("맞춤 루틴과 프리컨디셔닝을 시작합니다.")
+            }
+
+            // 2. 뉴스 요약 명령
+            trimmed.contains("뉴스") || trimmed.contains("요약") -> {
+                currentNewsItem?.let { onAcceptNewsSummary(it) } ?: run {
+                    voiceManager.speak("현재 추천된 뉴스를 불러오는 중입니다.")
+                }
+            }
+
+            // 3. 공조 온도 올리기
+            trimmed.contains("더워") || trimmed.contains("온도 올려") || trimmed.contains("올려줘") || trimmed.contains("따뜻") -> {
+                adjustTargetTemperature(+0.5f)
+                voiceManager.speak("목표 공조 온도를 ${currentTargetTemp}도로 올렸습니다.")
+            }
+
+            // 4. 공조 온도 내리기
+            trimmed.contains("추워") || trimmed.contains("온도 내려") || trimmed.contains("내려줘") || trimmed.contains("시원") -> {
+                adjustTargetTemperature(-0.5f)
+                voiceManager.speak("목표 공조 온도를 ${currentTargetTemp}도로 내렸습니다.")
+            }
+
+            // 5. 여행 모드 전환
+            trimmed.contains("여행") || trimmed.contains("콘도") || trimmed.contains("리조트") || trimmed.contains("주말") -> {
+                toggleTravelMode()
+            }
+
+            // 6. 시동 및 공조 가동
+            trimmed.contains("시동") || trimmed.contains("에어컨") || trimmed.contains("히터") || trimmed.contains("프리컨디셔닝") -> {
+                vehicleManager.startPreconditioning(currentTargetTemp, 2) { success ->
+                    runOnUiThread {
+                        voiceManager.speak(if (success) "원격 시동과 프리컨디셔닝이 실행되었습니다." else "차량 공조 상태를 확인해주세요.")
+                    }
+                }
+            }
+
+            // 7. 일반 주행 / 취소
+            trimmed.contains("아니") || trimmed.contains("취소") || trimmed.contains("그만") -> {
+                dismissQuickReply()
+            }
+
+            else -> {
+                voiceManager.speak("\"$trimmed\" 명령을 확인했습니다. 화면 퀵 버튼으로도 조작하실 수 있습니다.")
+            }
+        }
+    }
+
+    /**
+     * @brief Pleos FusedLocation SDK 1.1.3을 초기화하고 실시간 위치 및 주기적 날씨 동기화를 시작합니다.
+     */
+    private fun initLocationManager() {
+        locationManager = PleosLocationManager(this)
+
+        // 실시간 위치 수신 콜백
+        locationManager.onLocationChangedListener = { lat, lon, heading ->
+            currentLat = lat
+            currentLon = lon
+            currentHeading = heading
+
+            binding.tvLocationGps.text = "📍 실시간 GPS: %.4f°N, %.4f°E (FusedLocation)".format(lat, lon)
+            checkSmartCommuteIntent()
+        }
+
+        // 주기적(10분) 또는 거리 이동(2km)에 따른 날씨 갱신 트리거
+        locationManager.onWeatherRefreshNeededListener = { lat, lon, reason ->
+            appendLog("날씨 동기화 트리거: $reason (Lat=%.4f, Lon=%.4f)".format(lat, lon))
+            loadRealtimeWeather(lat, lon)
+        }
+
+        locationManager.startLocationTracking()
+
+        // 최초 1회 실시간 날씨 로드
+        loadRealtimeWeather(currentLat, currentLon)
     }
 
     /**
@@ -115,9 +240,18 @@ class MainActivity : AppCompatActivity() {
      * @return Unit
      */
     private fun setupClickListeners() {
-        // 음성 제어
+        // 음성 마이크 토글 (STT)
+        binding.btnVoiceMic.setOnClickListener {
+            if (voiceManager.isListening) {
+                voiceManager.stopListening()
+            } else {
+                voiceManager.startListening()
+            }
+        }
+
+        // 음성 정지 및 다시 듣기 (TTS)
         binding.btnVoiceStop.setOnClickListener {
-            voiceManager.stop()
+            voiceManager.stopSpeaking()
         }
 
         binding.btnVoiceReplay.setOnClickListener {
@@ -180,13 +314,15 @@ class MainActivity : AppCompatActivity() {
     }
 
     /**
-     * @brief 기상청 초단기실황 API를 호출하여 실시간 날씨를 갱신합니다.
+     * @brief 기상청 초단기실황 API를 호출하여 실시간 차량 위치 기반 날씨를 갱신합니다.
+     * @param lat 조회 위도
+     * @param lon 조회 경도
      * @return Unit
      */
-    private fun loadRealtimeWeather() {
-        appendLog("기상청 단기예보 실황 API 호출 중...")
+    private fun loadRealtimeWeather(lat: Double, lon: Double) {
+        appendLog("기상청 단기예보 실황 API 호출 중 (%.4f, %.4f)...".format(lat, lon))
         lifecycleScope.launch {
-            val weather = KmaWeatherClient.fetchCurrentWeather(currentLat, currentLon)
+            val weather = KmaWeatherClient.fetchCurrentWeather(lat, lon)
             currentWeather = weather
             if (weather != null) {
                 binding.tvWeatherDetails.text = "⛅ [기상청 초단기실황] ${weather.description} (풍속 ${weather.windSpeedMps}m/s)"
@@ -225,10 +361,7 @@ class MainActivity : AppCompatActivity() {
             binding.btnConfirmCommute.visibility = View.GONE
             binding.tvStatusBadge.text = "스마트 자동 케어 활성"
 
-            // 소음 대비 퀵 리플라이 카드 숨김
             binding.layoutQuickReplyCard.visibility = View.GONE
-
-            // TTS 음성 인사
             voiceManager.speak("반갑습니다. $greeting")
         } else {
             val prompt = commuteDetector.evaluateCommuteIntent(currentLat, currentLon)
@@ -237,7 +370,6 @@ class MainActivity : AppCompatActivity() {
                 binding.tvCommutePrompt.visibility = View.VISIBLE
                 binding.btnConfirmCommute.visibility = View.VISIBLE
 
-                // 소음 환경 대비 대화면 퀵 리플라이 패널 활성화
                 showQuickReplyPanel(
                     question = "📢 \"${prompt.message}\"",
                     yesLabel = "네, 맞춤 출근 시작",
@@ -248,9 +380,8 @@ class MainActivity : AppCompatActivity() {
                     onAlt = { toggleTravelMode() }
                 )
 
-                // 음성으로 운전자에게 질문
                 val spokenQuestion = if (prompt.commuteType == CommuteType.MORNING) {
-                    "현대자동차 양재 본사로 출근 중이십니까? 화면 터치나 음성으로 알려주세요."
+                    "현대자동차 양재 본사로 출근 중이십니까? 말씀하시거나 패널을 눌러주세요."
                 } else {
                     "자택으로 퇴근 중이십니까? 맞춤 프리컨디셔닝을 시작할까요?"
                 }
@@ -278,7 +409,6 @@ class MainActivity : AppCompatActivity() {
         binding.btnConfirmCommute.visibility = View.GONE
         binding.layoutQuickReplyCard.visibility = View.GONE
 
-        // 원격 프리컨디셔닝 및 시동 제어
         vehicleManager.startPreconditioning(currentTargetTemp, 2) { success ->
             runOnUiThread {
                 appendLog("출퇴근 케어 공조/시동 자동 가동: ${currentTargetTemp}℃ (결과: $success)")
@@ -314,7 +444,6 @@ class MainActivity : AppCompatActivity() {
             binding.btnVoiceReplay.visibility = View.VISIBLE
             appendLog("AI 브리핑 생성 완료 (GPT-4o-mini)")
 
-            // Pleos Voice Manager를 통한 자동 음성 낭독 (운전자 시선 분산 방지)
             voiceManager.speak(briefing)
         }
     }
@@ -506,6 +635,7 @@ class MainActivity : AppCompatActivity() {
 
     override fun onDestroy() {
         super.onDestroy()
+        locationManager.stopLocationTracking()
         voiceManager.release()
         vehicleManager.release()
     }

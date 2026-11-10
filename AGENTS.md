@@ -29,6 +29,8 @@
 ```text
 android/app/src/main/java/ai/pleos/commutecare/
   ├── data/
+  │   ├── location/
+  │   │   └── PleosLocationManager.kt      # Pleos FusedLocation SDK 기반 실시간 GPS 및 주기적 날씨 동기화
   │   └── weather/
   │       └── KmaWeatherClient.kt          # 기상청 단기예보 실황 API 연동 및 Lambert 투영 좌표 변환
   ├── domain/
