@@ -12,6 +12,7 @@ import android.util.Log
 import ai.pleos.playground.vehicle.Vehicle
 import ai.pleos.playground.vehicle.api.model.area.SeatArea
 import ai.pleos.playground.vehicle.constant.area.SeatValue
+import ai.pleos.playground.vehicle.constant.control.LightSwitch
 import ai.pleos.playground.vehicle.constant.unit.TemperatureUnit
 
 /**
@@ -145,6 +146,44 @@ class CommuteVehicleManager(
         } catch (e: Exception) {
             log("프리컨디셔닝 실행 중 예외: ${e.message}")
             onComplete(false)
+        }
+    }
+
+    /**
+     * 디 올 뉴 그랜저(GN7) 인터랙티브 무드램프(앰비언트 라이트) 색상 및 밝기 제어
+     * @param colorHex RGB 색상 정수값 (예: 0x00E5FF)
+     */
+    fun setAmbientMoodLight(colorHex: Int, onComplete: ((Boolean) -> Unit)? = null) {
+        val light = vehicle?.getLight()
+        if (light == null) {
+            log("Pleos Light API 준비되지 않음")
+            onComplete?.invoke(false)
+            return
+        }
+
+        try {
+            val driverSeat = SeatArea(SeatValue.ROW_1_LEFT)
+            light.setAmbientLightSwitch(driverSeat, LightSwitch.ON,
+                onComplete = { _, _ ->
+                    light.setAmbientLightBrightnessColor(driverSeat, colorHex,
+                        onComplete = { _, _ ->
+                            log("GN7 앰비언트 무드램프 색상 적용 완료: 0x%06X".format(colorHex and 0xFFFFFF))
+                            onComplete?.invoke(true)
+                        },
+                        onFailed = { e ->
+                            log("앰비언트 밝기/색상 설정 실패: ${e.message}")
+                            onComplete?.invoke(false)
+                        }
+                    )
+                },
+                onFailed = { e ->
+                    log("앰비언트 라이트 스위치 ON 실패: ${e.message}")
+                    onComplete?.invoke(false)
+                }
+            )
+        } catch (e: Exception) {
+            log("앰비언트 제어 예외: ${e.message}")
+            onComplete?.invoke(false)
         }
     }
 
