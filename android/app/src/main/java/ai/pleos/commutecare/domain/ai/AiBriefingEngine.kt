@@ -23,8 +23,8 @@ object AiBriefingEngine {
     private const val TAG = "AiBriefingEngine"
     private const val OPENAI_ENDPOINT = "https://api.openai.com/v1/chat/completions"
 
-    // 주입된 OpenAI API Key
-    var openAiKey: String = "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"
+    // 주입된 OpenAI API Key (BuildConfig 또는 외부 주입)
+    var openAiKey: String = ai.pleos.commutecare.BuildConfig.OPENAI_API_KEY
 
     suspend fun generateBriefing(
         commuteType: CommuteType,

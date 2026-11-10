@@ -45,7 +45,8 @@ enum class WeatherConditionTag {
 object KmaWeatherClient {
     private const val TAG = "KmaWeatherClient"
     private const val API_ENDPOINT = "http://apis.data.go.kr/1360000/VilageFcstInfoService_2.0/getUltraSrtNcst"
-    private const val SERVICE_KEY = "b51c7376c6fecd0f8af62dd1d77661ebca07c213d782eeb864f34de1cc73edaa"
+    private val SERVICE_KEY: String
+        get() = ai.pleos.commutecare.BuildConfig.KMA_SERVICE_KEY
 
     /**
      * 위경도 기반 기상청 초단기실황 조회

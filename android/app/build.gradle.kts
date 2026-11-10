@@ -1,3 +1,5 @@
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
@@ -21,6 +23,21 @@ android {
         versionCode = 1
         versionName = "1.0.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+
+        // Local Secret Properties Loading (.env / local.properties)
+        val envFile = rootProject.file("../.env")
+        val envProperties = Properties()
+        if (envFile.exists()) {
+            envFile.inputStream().use { envProperties.load(it) }
+        }
+
+        val openAiApiKey = envProperties.getProperty("OPENAI_API_KEY")
+            ?: System.getenv("OPENAI_API_KEY") ?: ""
+        val kmaServiceKey = envProperties.getProperty("KMA_SERVICE_KEY")
+            ?: System.getenv("KMA_SERVICE_KEY") ?: ""
+
+        buildConfigField("String", "OPENAI_API_KEY", "\"$openAiApiKey\"")
+        buildConfigField("String", "KMA_SERVICE_KEY", "\"$kmaServiceKey\"")
     }
 
     compileOptions {
