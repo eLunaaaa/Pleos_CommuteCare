@@ -16,7 +16,15 @@ import ai.pleos.playground.vehicle.constant.control.LightSwitch
 import ai.pleos.playground.vehicle.constant.unit.TemperatureUnit
 
 /**
- * Pleos Vehicle SDK 2.3.2 + AAOS Car Service 연동 매니저
+ * @file CommuteVehicleManager.kt
+ * @brief Pleos Vehicle SDK 2.3.2 및 AAOS Car Service 연동 차량 하드웨어 제어 매니저.
+ *
+ * 주요 담당 기능 및 동작 순서:
+ *  1. Pleos Vehicle SDK (공조/HVAC, 시트 열선/통풍, GN7 인터랙티브 무드램프) 초기화 및 바인딩
+ *  2. AAOS CarUxRestrictionsManager를 통한 주행 중(Distraction Optimization) UI 간소화 제약 모니터링
+ *  3. 차속(Vehicle Speed) 센서 구독 및 실시간 속도(km/h) 갱신
+ *  4. 출근/퇴근 전 스마트 프리컨디셔닝 (목표 공조 온도 세팅 및 시트 열선 제어)
+ *  5. 지능형 자동 원격 시동 및 미탑승(휴가/일정 취소) 시 배터리 방전 방지 자동 시동 꺼짐 타이머(Auto Engine Shutdown Timer)
  */
 @android.annotation.TargetApi(29)
 class CommuteVehicleManager(
@@ -35,6 +43,14 @@ class CommuteVehicleManager(
 
     private var speedCallback: CarPropertyManager.CarPropertyEventCallback? = null
 
+    // 자동 시동 후 미탑승 방전 방지 타이머 Runnable (기본 10분)
+    private var autoShutdownRunnable: Runnable? = null
+    private var isEnginePreconditionedOn: Boolean = false
+
+    /**
+     * @brief Pleos Vehicle SDK 및 AAOS Car Service 연결을 시작함.
+     * @return Unit
+     */
     fun connect() {
         // 1. Pleos Vehicle SDK 초기화
         try {
@@ -135,6 +151,8 @@ class CommuteVehicleManager(
             seat.setHvacSeatTemperature(driverSeat, seatHeatingLevel,
                 onComplete = { _, _ ->
                     log("운전석 열선 ${seatHeatingLevel}단 설정 완료")
+                    isEnginePreconditionedOn = true
+                    scheduleSafetyAutoShutdown(10 /* 10분 제한 */)
                     onComplete(true)
                 },
                 onFailed = { e ->
@@ -146,6 +164,54 @@ class CommuteVehicleManager(
         } catch (e: Exception) {
             log("프리컨디셔닝 실행 중 예외: ${e.message}")
             onComplete(false)
+        }
+    }
+
+    /**
+     * @brief 자동 시동 및 프리컨디셔닝 후 운전자 미탑승(휴가, 일정 취소) 시 배터리 방전 방지를 위한 타이머.
+     * @param timeoutMinutes 시동 유지 시간 (분 단위, 예: 10분)
+     * @return Unit
+     */
+    fun scheduleSafetyAutoShutdown(timeoutMinutes: Int = 10) {
+        autoShutdownRunnable?.let { handler.removeCallbacks(it) }
+        log("🛡️ 배터리 방전 방지 안전 타이머 가동: ${timeoutMinutes}분 내 미탑승 시 자동 시동 OFF 예약")
+
+        autoShutdownRunnable = Runnable {
+            if (isEnginePreconditionedOn) {
+                log("⚠️ [안전 알림] ${timeoutMinutes}분간 운전자 탑승이 감지되지 않아 배터리 보호를 위해 공조 및 시동을 자동 종료합니다.")
+                stopPreconditioning()
+            }
+        }
+        handler.postDelayed(autoShutdownRunnable!!, timeoutMinutes * 60 * 1000L)
+    }
+
+    /**
+     * @brief 운전자 탑승 감지 시 안전 종료 타이머를 해제함.
+     * @return Unit
+     */
+    fun cancelSafetyAutoShutdown() {
+        autoShutdownRunnable?.let {
+            handler.removeCallbacks(it)
+            autoShutdownRunnable = null
+            log("운전자 탑승 감지: 자동 시동 OFF 타이머 해제")
+        }
+    }
+
+    /**
+     * @brief 공조 및 시동 프리컨디셔닝을 안전하게 강제 종료함.
+     * @return Unit
+     */
+    fun stopPreconditioning() {
+        val hvac = vehicle?.getHVAC()
+        try {
+            val driverSeat = SeatArea(SeatValue.ROW_1_LEFT)
+            hvac?.setHvacPower(driverSeat, false,
+                onComplete = { _, _ -> log("공조 전원 OFF 완료") },
+                onFailed = { e -> log("공조 OFF 실패: ${e.message}") }
+            )
+            isEnginePreconditionedOn = false
+        } catch (e: Exception) {
+            log("프리컨디셔닝 종료 예외: ${e.message}")
         }
     }
 
