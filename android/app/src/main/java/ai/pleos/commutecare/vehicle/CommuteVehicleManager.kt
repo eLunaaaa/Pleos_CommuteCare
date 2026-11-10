@@ -133,10 +133,20 @@ class CommuteVehicleManager(
         }
 
         try {
+            // Pleos VHAL 계약:
+            // HVAC 전원(HVAC_POWER_ON)은 전체 캐빈 영역(0x75)에 매핑
+            // 시트 열선 및 개별 온도 설정은 운전석(ROW_1_LEFT: 0x1)에 매핑
             val driverSeat = SeatArea(SeatValue.ROW_1_LEFT)
+            val cabinAllArea = SeatArea(
+                SeatValue.ROW_1_LEFT,
+                SeatValue.ROW_1_RIGHT,
+                SeatValue.ROW_2_LEFT,
+                SeatValue.ROW_2_CENTER,
+                SeatValue.ROW_2_RIGHT
+            )
 
             // 1. HVAC 전원 및 목표 온도 세팅
-            hvac.setHvacPower(driverSeat, true,
+            hvac.setHvacPower(cabinAllArea, true,
                 onComplete = { _, _ ->
                     log("HVAC 전원 ON 완료")
                     hvac.setHvacTemperature(driverSeat, targetTemp, TemperatureUnit.CELSIUS,
@@ -228,10 +238,17 @@ class CommuteVehicleManager(
         }
 
         try {
-            val driverSeat = SeatArea(SeatValue.ROW_1_LEFT)
-            light.setAmbientLightSwitch(driverSeat, LightSwitch.ON,
+            // 그랜저 GN7 크래시패드 일체형 앰비언트 라이트는 캐빈 전체 비트마스크(0x75)에 바인딩
+            val ambientCabinArea = SeatArea(
+                SeatValue.ROW_1_LEFT,
+                SeatValue.ROW_1_RIGHT,
+                SeatValue.ROW_2_LEFT,
+                SeatValue.ROW_2_CENTER,
+                SeatValue.ROW_2_RIGHT
+            )
+            light.setAmbientLightSwitch(ambientCabinArea, LightSwitch.ON,
                 onComplete = { _, _ ->
-                    light.setAmbientLightBrightnessColor(driverSeat, colorHex,
+                    light.setAmbientLightBrightnessColor(ambientCabinArea, colorHex,
                         onComplete = { _, _ ->
                             log("GN7 앰비언트 무드램프 색상 적용 완료: 0x%06X".format(colorHex and 0xFFFFFF))
                             onComplete?.invoke(true)
