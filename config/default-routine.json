@@ -1,0 +1,30 @@
+{
+  "commute_routines": {
+    "morning": {
+      "schedule_time": "08:00",
+      "precondition_lead_minutes": 15,
+      "target_temperature_celsius": 22.0,
+      "seat_heating_level": 2,
+      "playlist": {
+        "name": "에너지 업 출근길 믹스",
+        "current_track": "Viva La Vida - Coldplay",
+        "eq_preset": "Vocal & Energy Boost",
+        "eq_bands": { "bass": 4.5, "mid": 2.0, "treble": 3.0 }
+      },
+      "briefing_topics": ["테크 & 모빌리티", "오늘의 날씨", "사옥 미팅 일정"]
+    },
+    "evening": {
+      "schedule_time": "18:30",
+      "precondition_lead_minutes": 15,
+      "target_temperature_celsius": 21.5,
+      "seat_heating_level": 1,
+      "playlist": {
+        "name": "퇴근길 칠아웃 재즈 & 어쿠스틱",
+        "current_track": "Fly Me to the Moon - Frank Sinatra",
+        "eq_preset": "Warm & Acoustic Relax",
+        "eq_bands": { "bass": 2.0, "mid": 3.5, "treble": 1.0 }
+      },
+      "briefing_topics": ["퇴근길 교통 상황", "주요 시사 요약", "저녁 일정"]
+    }
+  }
+}
