@@ -21,6 +21,8 @@ import ai.pleos.commutecare.domain.audio.PsychoacousticEngine
 import ai.pleos.commutecare.domain.calendar.CalendarMailManager
 import ai.pleos.commutecare.domain.commute.CommutePrompt
 import ai.pleos.commutecare.domain.commute.SmartCommuteDetector
+import ai.pleos.commutecare.domain.lighting.AmbientLightingEngine
+import ai.pleos.commutecare.domain.lighting.AmbientLightingPreset
 import ai.pleos.commutecare.domain.news.AdaptiveNewsEngine
 import ai.pleos.commutecare.domain.news.NewsItem
 import ai.pleos.commutecare.domain.news.UserAgeGroup
@@ -38,6 +40,7 @@ class MainActivity : AppCompatActivity() {
     private var currentCommuteMode = CommuteType.MORNING
     private var currentWeather: RealtimeWeather? = null
     private var currentAcousticPreset: AcousticPreset? = null
+    private var currentLightingPreset: AmbientLightingPreset? = null
     private var currentNewsItem: NewsItem? = null
 
     // UI Components
@@ -48,6 +51,8 @@ class MainActivity : AppCompatActivity() {
     private lateinit var btnConfirmCommute: Button
     private lateinit var tvAiBriefing: TextView
     private lateinit var btnRefreshAiBriefing: Button
+    private lateinit var tvLightingInfo: TextView
+    private lateinit var tvLightingBasis: TextView
     private lateinit var tvAudioInfo: TextView
     private lateinit var tvAcousticBasis: TextView
     private lateinit var tvNewsTitle: TextView
@@ -99,6 +104,7 @@ class MainActivity : AppCompatActivity() {
                 appendLog("기상청 API 응답 대기/캐시 전환")
             }
             updateAcousticEnvironment()
+            updateLightingEnvironment()
             updateNewsRecommendation()
             requestAiBriefing()
         }
@@ -119,6 +125,7 @@ class MainActivity : AppCompatActivity() {
                 tvCommutePrompt.text = "✅ ${prompt.destination.name} 경로 설정 및 맞춤 케어 루틴이 활성화되었습니다."
                 btnConfirmCommute.visibility = View.GONE
                 updateAcousticEnvironment()
+                updateLightingEnvironment()
                 updateNewsRecommendation()
                 requestAiBriefing()
                 Toast.makeText(this, "${prompt.destination.name} 맞춤 루틴 활성화", Toast.LENGTH_SHORT).show()
@@ -167,7 +174,24 @@ class MainActivity : AppCompatActivity() {
     }
 
     /**
-     * 4. 나이/성별 기반 뉴스 추천 -> 요약 여부 확인(피드백 학습)
+     * 4. 디 올 뉴 그랜저(GN7) 앰비언트 라이트 색채심리학 및 생체리듬 논문 근거 튜닝
+     */
+    private fun updateLightingEnvironment() {
+        val condition = currentWeather?.conditionTag ?: WeatherConditionTag.CLEAR
+        val preset = AmbientLightingEngine.determineLightingPreset(currentCommuteMode, condition)
+        currentLightingPreset = preset
+
+        tvLightingInfo.text = "💡 무드램프 색상: ${preset.colorNameKo} (${preset.hexString})\n프리셋: ${preset.presetName}"
+        tvLightingBasis.text = "🔬 조명 공학 & 색채심리 근거:\n${preset.scientificBasis}\n[출처 논문: ${preset.referencePaper}]"
+
+        // 실제 Pleos Light SDK 2.3.2를 통해 GN7 앰비언트 색상 명령 전송
+        vehicleManager.setAmbientMoodLight(preset.colorHex) { success ->
+            if (success) appendLog("GN7 무드램프 색상 자동 동기화 완료: ${preset.colorNameKo}")
+        }
+    }
+
+    /**
+     * 5. 나이/성별 기반 뉴스 추천 -> 요약 여부 확인(피드백 학습)
      */
     private fun updateNewsRecommendation() {
         val topNews = newsEngine.recommendTopNews()
@@ -312,7 +336,23 @@ class MainActivity : AppCompatActivity() {
         }
         layout.addView(tvAcousticBasis)
 
-        // 4. 나이/성별 맞춤 뉴스 및 선호도 학습
+        // 5. 그랜저 GN7 앰비언트 무드램프 제어 및 논문 근거
+        layout.addView(createSectionHeader("💡 그랜저(GN7) 앰비언트 라이트 (조명공학 & 심리 연구)"))
+        tvLightingInfo = TextView(this).apply {
+            setTextColor(0xFFFFD54F.toInt())
+            textSize = 14f
+            setPadding(0, 8, 0, 4)
+        }
+        layout.addView(tvLightingInfo)
+
+        tvLightingBasis = TextView(this).apply {
+            setTextColor(0xFFB0BEC5.toInt())
+            textSize = 12f
+            setPadding(0, 4, 0, 16)
+        }
+        layout.addView(tvLightingBasis)
+
+        // 6. 나이/성별 맞춤 뉴스 및 선호도 학습
         layout.addView(createSectionHeader("📰 맞춤형 뉴스 브리핑 & 취향 학습"))
         tvNewsTitle = TextView(this).apply {
             setTextColor(0xFFECEFF1.toInt())
