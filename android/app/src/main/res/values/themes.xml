@@ -1,0 +1,11 @@
+<resources>
+    <style name="Theme.PleosCommuteCare" parent="Theme.MaterialComponents.DayNight.NoActionBar">
+        <item name="colorPrimary">#0D47A1</item>
+        <item name="colorPrimaryVariant">#002171</item>
+        <item name="colorOnPrimary">#FFFFFF</item>
+        <item name="colorSecondary">#00E5FF</item>
+        <item name="colorSecondaryVariant">#00B2CC</item>
+        <item name="colorOnSecondary">#000000</item>
+        <item name="android:statusBarColor">#002171</item>
+    </style>
+</resources>

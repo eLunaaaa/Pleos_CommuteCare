@@ -1,0 +1,16 @@
+.DS_Store
+*.docx
+.venv/
+__pycache__/
+*.pyc
+.env
+local.properties
+.gradle/
+**/build/
+*.db
+*.sqlite*
+*.jks
+*.keystore
+
+.idea/
+.tools/
