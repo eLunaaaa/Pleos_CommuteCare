@@ -15,8 +15,10 @@ import ai.pleos.commutecare.data.weather.RealtimeWeather
 import ai.pleos.commutecare.data.weather.WeatherConditionTag
 import ai.pleos.commutecare.domain.CommuteSchedule
 import ai.pleos.commutecare.domain.CommuteType
+import ai.pleos.commutecare.domain.ai.AiBriefingEngine
 import ai.pleos.commutecare.domain.audio.AcousticPreset
 import ai.pleos.commutecare.domain.audio.PsychoacousticEngine
+import ai.pleos.commutecare.domain.calendar.CalendarMailManager
 import ai.pleos.commutecare.domain.commute.CommutePrompt
 import ai.pleos.commutecare.domain.commute.SmartCommuteDetector
 import ai.pleos.commutecare.domain.news.AdaptiveNewsEngine
@@ -31,6 +33,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var vehicleManager: CommuteVehicleManager
     private val commuteDetector = SmartCommuteDetector()
     private val newsEngine = AdaptiveNewsEngine(UserAgeGroup.THIRTIES, UserGender.MALE)
+    private val calendarMailManager = CalendarMailManager()
 
     private var currentCommuteMode = CommuteType.MORNING
     private var currentWeather: RealtimeWeather? = null
@@ -43,6 +46,8 @@ class MainActivity : AppCompatActivity() {
     private lateinit var tvWeatherDetails: TextView
     private lateinit var tvCommutePrompt: TextView
     private lateinit var btnConfirmCommute: Button
+    private lateinit var tvAiBriefing: TextView
+    private lateinit var btnRefreshAiBriefing: Button
     private lateinit var tvAudioInfo: TextView
     private lateinit var tvAcousticBasis: TextView
     private lateinit var tvNewsTitle: TextView
@@ -95,6 +100,7 @@ class MainActivity : AppCompatActivity() {
             }
             updateAcousticEnvironment()
             updateNewsRecommendation()
+            requestAiBriefing()
         }
     }
 
@@ -114,11 +120,31 @@ class MainActivity : AppCompatActivity() {
                 btnConfirmCommute.visibility = View.GONE
                 updateAcousticEnvironment()
                 updateNewsRecommendation()
+                requestAiBriefing()
                 Toast.makeText(this, "${prompt.destination.name} 맞춤 루틴 활성화", Toast.LENGTH_SHORT).show()
             }
         } else {
             tvCommutePrompt.visibility = View.GONE
             btnConfirmCommute.visibility = View.GONE
+        }
+    }
+
+    /**
+     * 3. OpenAI GPT-4o-mini 기반 하이브리드 인공지능 모닝/이브닝 브리핑 생성
+     */
+    private fun requestAiBriefing() {
+        tvAiBriefing.text = "🤖 탑승자 맞춤 AI 브리핑 생성 중 (날씨, 캘린더, 메일 분석 중)..."
+        lifecycleScope.launch {
+            val events = calendarMailManager.fetchTodayEvents()
+            val emails = calendarMailManager.fetchUnreadImportantEmails()
+            val briefing = AiBriefingEngine.generateBriefing(
+                currentCommuteMode,
+                currentWeather,
+                events,
+                emails
+            )
+            tvAiBriefing.text = "🎙️ [Pleos AI 맞춤 음성 브리핑]\n$briefing"
+            appendLog("AI 브리핑 생성 완료 (GPT-4o-mini)")
         }
     }
 
@@ -252,7 +278,25 @@ class MainActivity : AppCompatActivity() {
         }
         layout.addView(btnPrecondition)
 
-        // 3. 음향학적 계절/날씨 맞춤 사운드 & EQ
+        // 3. AI 맞춤 브리핑 (OpenAI GPT-4o-mini)
+        layout.addView(createSectionHeader("🎙️ Pleos 하이브리드 AI 브리핑 (날씨·일정·메일)"))
+        tvAiBriefing = TextView(this).apply {
+            text = "AI 브리핑 대기 중..."
+            setTextColor(0xFFE0E0E0.toInt())
+            textSize = 14f
+            setPadding(0, 8, 0, 8)
+        }
+        layout.addView(tvAiBriefing)
+
+        btnRefreshAiBriefing = Button(this).apply {
+            text = "AI 브리핑 다시 생성 (GPT-4o-mini)"
+            setBackgroundColor(0xFF37474F.toInt())
+            setTextColor(0xFFFFFFFF.toInt())
+            setOnClickListener { requestAiBriefing() }
+        }
+        layout.addView(btnRefreshAiBriefing)
+
+        // 4. 음향학적 계절/날씨 맞춤 사운드 & EQ
         layout.addView(createSectionHeader("🎧 날씨·계절·마스킹 기반 오디오 & EQ"))
         tvAudioInfo = TextView(this).apply {
             setTextColor(0xFF80D8FF.toInt())

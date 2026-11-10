@@ -15,15 +15,16 @@ import java.net.HttpURLConnection
 import java.net.URL
 
 /**
- * 하이브리드 AI 브리핑 엔진
- * - 온라인 시: Gemini API를 호출하여 날씨, 일정, 중요 메일을 자연스러운 구어체 비서 브리핑으로 생성
- * - 오프라인/키 미입력 시: 안전한 로컬 룰베이스 폴백 브리핑 제공
+ * 하이브리드 인공지능 브리핑 엔진
+ * - OpenAI GPT-4o-mini 기반 지능형 요약 브리핑 생성
+ * - 통신 두절 또는 응답 지연 시 안전한 차량 내 로컬 룰베이스 폴백
  */
 object AiBriefingEngine {
     private const val TAG = "AiBriefingEngine"
+    private const val OPENAI_ENDPOINT = "https://api.openai.com/v1/chat/completions"
 
-    // 사용자가 API 키를 설정하거나 환경변수/설정창에서 주입 가능 (미설정 시 Rule-based 자동 폴백)
-    var apiKey: String = ""
+    // 주입된 OpenAI API Key
+    var openAiKey: String = "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"
 
     suspend fun generateBriefing(
         commuteType: CommuteType,
@@ -31,67 +32,78 @@ object AiBriefingEngine {
         events: List<WorkEvent>,
         emails: List<WorkEmail>
     ): String = withContext(Dispatchers.IO) {
-        if (apiKey.isNotBlank()) {
+        if (openAiKey.isNotBlank()) {
             try {
-                val aiResponse = callGeminiApi(commuteType, weather, events, emails, apiKey)
+                val aiResponse = callOpenAiGpt(commuteType, weather, events, emails, openAiKey)
                 if (aiResponse.isNotBlank()) return@withContext aiResponse
             } catch (e: Exception) {
-                Log.w(TAG, "Gemini API 호출 실패, 로컬 룰베이스로 폴백: ${e.message}")
+                Log.w(TAG, "OpenAI API 호출 실패, 로컬 룰베이스로 안전 전환: ${e.message}")
             }
         }
         return@withContext generateFallbackBriefing(commuteType, weather, events, emails)
     }
 
-    private fun callGeminiApi(
+    private fun callOpenAiGpt(
         commuteType: CommuteType,
         weather: RealtimeWeather?,
         events: List<WorkEvent>,
         emails: List<WorkEmail>,
         key: String
     ): String {
-        val endpoint = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=$key"
-        val url = URL(endpoint)
+        val url = URL(OPENAI_ENDPOINT)
         val conn = (url.openConnection() as HttpURLConnection).apply {
             requestMethod = "POST"
-            setRequestProperty("Content-Type", "application/json")
+            setRequestProperty("Content-Type", "application/json; charset=utf-8")
+            setRequestProperty("Authorization", "Bearer $key")
             doOutput = true
-            connectTimeout = 5000
-            readTimeout = 5000
+            connectTimeout = 6000
+            readTimeout = 6000
         }
 
-        val promptText = buildString {
-            append("너는 현대자동차 프리미엄 세단(그랜저 GN7/제네시스)의 탑승자 전용 AI 브리핑 에이전트야. ")
-            append("차량 탑승자가 운전에 집중할 수 있도록 아래 정보를 바탕으로 편안하고 신뢰감 있는 3문장 분량의 구어체 음성 브리핑 멘트를 작성해줘.\n\n")
-            append("[상황]: ${if (commuteType == CommuteType.MORNING) "출근길" else "퇴근길"}\n")
-            append("[날씨]: ${weather?.description ?: "기온 14도, 맑음"}\n")
-            append("[주요 일정]: ${events.joinToString { "${it.startTime} ${it.title} (${it.location})" }}\n")
-            append("[중요 미확인 메일]: ${emails.filter { it.isImportant }.joinToString { "${it.sender}: ${it.subject}" }}\n")
+        val systemPrompt = "너는 현대자동차 디 올 뉴 그랜저(GN7) 및 제네시스 Pleos IVI 시스템의 탑승자 전용 AI 브리핑 에이전트야. 운전자가 주행 전 편안하게 들을 수 있도록 존댓말과 정중하고 부드러운 톤(TTS용 구어체)으로 3문장 이내의 브리핑 멘트를 작성해."
+
+        val userPrompt = buildString {
+            append("상황: ${if (commuteType == CommuteType.MORNING) "출근길" else "퇴근길"}\n")
+            append("기상청 날씨: ${weather?.description ?: "기온 14.5도, 맑음, 강수 없음"}\n")
+            append("오늘 주요 캘린더 일정: ${events.joinToString("; ") { "[${it.startTime}] ${it.title} (${it.location})" }}\n")
+            val importantMails = emails.filter { it.isImportant }
+            if (importantMails.isNotEmpty()) {
+                append("미확인 중요 메일: ${importantMails.joinToString("; ") { "${it.sender}: ${it.subject} (${it.snippet})" }}\n")
+            }
+            append("요청: 위 기상과 일정, 중요 메일을 유기적으로 연결하여 탑승자에게 맞춤 브리핑을 해줘.")
         }
 
-        val jsonBody = JSONObject().apply {
-            put("contents", JSONArray().put(JSONObject().apply {
-                put("parts", JSONArray().put(JSONObject().apply {
-                    put("text", promptText)
-                }))
-            }))
+        val payload = JSONObject().apply {
+            put("model", "gpt-4o-mini")
+            put("temperature", 0.7)
+            put("messages", JSONArray().apply {
+                put(JSONObject().apply {
+                    put("role", "system")
+                    put("content", systemPrompt)
+                })
+                put(JSONObject().apply {
+                    put("role", "user")
+                    put("content", userPrompt)
+                })
+            })
         }
 
         conn.outputStream.use { os ->
-            os.write(jsonBody.toString().toByteArray())
+            os.write(payload.toString().toByteArray(Charsets.UTF_8))
             os.flush()
         }
 
         if (conn.responseCode == 200) {
-            val responseText = conn.inputStream.bufferedReader().use(BufferedReader::readText)
+            val responseText = conn.inputStream.bufferedReader(Charsets.UTF_8).use(BufferedReader::readText)
             val root = JSONObject(responseText)
-            val candidates = root.getJSONArray("candidates")
-            if (candidates.length() > 0) {
-                val content = candidates.getJSONObject(0).getJSONObject("content")
-                val parts = content.getJSONArray("parts")
-                if (parts.length() > 0) {
-                    return parts.getJSONObject(0).getString("text").trim()
-                }
+            val choices = root.getJSONArray("choices")
+            if (choices.length() > 0) {
+                val messageObj = choices.getJSONObject(0).getJSONObject("message")
+                return messageObj.getString("content").trim()
             }
+        } else {
+            val errorText = conn.errorStream?.bufferedReader(Charsets.UTF_8)?.use(BufferedReader::readText)
+            Log.e(TAG, "OpenAI API 에러 (${conn.responseCode}): $errorText")
         }
         return ""
     }
@@ -107,7 +119,7 @@ object AiBriefingEngine {
 
         return buildString {
             if (commuteType == CommuteType.MORNING) {
-                append("좋은 아침입니다. 오늘 날씨는 ${weather?.description ?: "쾌적함"} 상태입니다. ")
+                append("좋은 아침입니다. 오늘 날씨는 ${weather?.description ?: "쾌적한"} 상태입니다. ")
                 if (nextEvent != null) {
                     append("첫 번째 일정은 ${nextEvent.startTime}에 시작되는 '${nextEvent.title}'입니다. ")
                 }
