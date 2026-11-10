@@ -1,3 +1,17 @@
+/**
+ * @file MainActivity.kt
+ * @brief Pleos CommuteCare 대화면 IVI 인포테인먼트 메인 화면 및 에이전트 오케스트레이션.
+ *
+ * 전체 라이프사이클 및 동작 순서:
+ *  1. Pleos Vehicle SDK (공조/시트/조명) 및 AAOS Car Service 연결 초기화
+ *  2. Pleos TextToSpeech SDK 및 소음 대비 인터랙티브 터치 패널 초기화
+ *  3. 기상청 초단기실황 API 호출 및 위경도->격자 변환을 통한 실시간 기상 데이터 취득
+ *  4. 출퇴근 패턴 학습 엔진(CommutePatternEngine)을 통한 개인화 목표 온도 및 자동 인사 상태 확인
+ *  5. 소음 환경 대응: "출근 중이십니까?" 음성 안내 + 대화면 원터치 퀵 리플라이 카드 노출
+ *  6. OpenAI GPT-4o-mini 기반 하이브리드 개인 비서 음성 브리핑 생성 및 TTS 실시간 낭독
+ *  7. 심리음향학 기반 YouTube Music 트랙 매칭 및 디 올 뉴 그랜저(GN7) 무드램프 색상 동기화
+ */
+
 package ai.pleos.commutecare.presentation
 
 import android.os.Bundle
@@ -7,7 +21,6 @@ import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
 import android.widget.Toast
-import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
 import ai.pleos.commutecare.data.weather.KmaWeatherClient
@@ -30,25 +43,16 @@ import ai.pleos.commutecare.domain.news.NewsItem
 import ai.pleos.commutecare.domain.news.UserAgeGroup
 import ai.pleos.commutecare.domain.news.UserGender
 import ai.pleos.commutecare.domain.travel.TravelModeEngine
+import ai.pleos.commutecare.domain.voice.PleosVoiceManager
 import ai.pleos.commutecare.vehicle.CommuteVehicleManager
 import kotlinx.coroutines.launch
 import java.util.Calendar
 
-/**
- * @file MainActivity.kt
- * @brief Pleos CommuteCare 대화면 IVI 인포테인먼트 메인 화면 및 에이전트 오케스트레이션.
- *
- * 전체 라이프사이클 및 동작 순서:
- *  1. Pleos Vehicle SDK (공조/시트/조명) 및 AAOS Car Service 연결 초기화
- *  2. 기상청 초단기실황 API 호출 및 위경도->격자 변환을 통한 실시간 기상 데이터 취득
- *  3. 출퇴근 패턴 학습 엔진(CommutePatternEngine)을 통한 개인화 목표 온도 및 자동 인사 상태 확인
- *  4. 목적지 검사 및 여행 모드(TravelModeEngine) 감지 ("여행을 떠나시나요?")
- *  5. OpenAI GPT-4o-mini 기반 하이브리드 개인 비서 음성 브리핑 생성
- *  6. 심리음향학 기반 YouTube Music 트랙 매칭 및 디 올 뉴 그랜저(GN7) 무드램프 색상 동기화
- */
 class MainActivity : AppCompatActivity() {
 
     private lateinit var vehicleManager: CommuteVehicleManager
+    private lateinit var voiceManager: PleosVoiceManager
+
     private val commuteDetector = SmartCommuteDetector()
     private val newsEngine = AdaptiveNewsEngine(UserAgeGroup.THIRTIES, UserGender.MALE)
     private val calendarMailManager = CalendarMailManager()
@@ -62,10 +66,23 @@ class MainActivity : AppCompatActivity() {
     private var currentLightingPreset: AmbientLightingPreset? = null
     private var currentNewsItem: NewsItem? = null
     private var isTravelModeActive: Boolean = false
+    private var latestBriefingText: String = ""
 
-    // UI Components
+    // UI Components - Header & Voice Panel (소음 대처 인터랙티브 터치 패널)
     private lateinit var tvStatusBadge: TextView
     private lateinit var tvSpeed: TextView
+    private lateinit var tvVoiceStatus: TextView
+    private lateinit var btnVoiceStop: Button
+    private lateinit var btnVoiceReplay: Button
+
+    // Quick Reply Action Card (소음으로 인한 음성 인식 실패 대비 패널 터치 답변 UI)
+    private lateinit var layoutQuickReplyCard: LinearLayout
+    private lateinit var tvQuickReplyQuestion: TextView
+    private lateinit var btnQuickReplyYes: Button
+    private lateinit var btnQuickReplyNo: Button
+    private lateinit var btnQuickReplyAlt: Button
+
+    // Core Content Views
     private lateinit var tvWeatherDetails: TextView
     private lateinit var tvCommutePrompt: TextView
     private lateinit var btnConfirmCommute: Button
@@ -95,6 +112,7 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(buildContentView())
 
+        initVoiceManager()
         patternEngine.seedDemonstrationHistory()
         initVehicleManager()
         loadRealtimeWeather()
@@ -102,7 +120,25 @@ class MainActivity : AppCompatActivity() {
     }
 
     /**
-     * @brief Pleos Vehicle SDK 및 차속/주행제한 리스너를 초기화함.
+     * @brief Pleos Voice Manager (TTS) 초기화 및 UI 발화 상태 리스너를 등록합니다.
+     * @return Unit
+     */
+    private fun initVoiceManager() {
+        voiceManager = PleosVoiceManager(this)
+        voiceManager.onSpeechStateChangeListener = { isSpeaking, speakingText ->
+            if (isSpeaking) {
+                val preview = if (speakingText != null) " - \"${speakingText.take(24)}...\"" else ""
+                tvVoiceStatus.text = "🔊 [음성 안내 중] Pleos TTS 출력$preview"
+                btnVoiceStop.visibility = View.VISIBLE
+            } else {
+                tvVoiceStatus.text = "🔈 [음성 대기] 음성 또는 패널 터치로 응답 가능합니다."
+                btnVoiceStop.visibility = View.GONE
+            }
+        }
+    }
+
+    /**
+     * @brief Pleos Vehicle SDK 및 차속/주행제한 리스너를 초기화합니다.
      * @return Unit
      */
     private fun initVehicleManager() {
@@ -121,7 +157,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     /**
-     * @brief 기상청 초단기실황 API를 호출하여 실시간 날씨를 갱신함.
+     * @brief 기상청 초단기실황 API를 호출하여 실시간 날씨를 갱신합니다.
      * @return Unit
      */
     private fun loadRealtimeWeather() {
@@ -144,7 +180,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     /**
-     * @brief 시계열 학습 및 GPS 위치 기반으로 출퇴근 또는 자동 인사를 판별함.
+     * @brief 시계열 학습 및 GPS 위치 기반으로 출퇴근 또는 자동 인사를 판별하고 음성 및 터치 패널에 제안합니다.
      * @return Unit
      */
     private fun checkSmartCommuteIntent() {
@@ -158,42 +194,89 @@ class MainActivity : AppCompatActivity() {
 
         if (pattern.isAutoGreetingUnlocked) {
             val greeting = if (currentCommuteMode == CommuteType.MORNING)
-                "🌟 패턴 학습 완료: 오늘도 힘찬 하루 보내세요! 출발 준비가 완료되었습니다."
+                "오늘도 힘찬 하루 보내세요! 출발 준비가 완료되었습니다."
             else
-                "🌙 패턴 학습 완료: 오늘 하루도 정말 수고 많으셨습니다. 안전하게 귀가하세요."
-            tvCommutePrompt.text = greeting
+                "오늘 하루도 정말 수고 많으셨습니다. 안전하게 귀가하세요."
+            tvCommutePrompt.text = "🌟 패턴 학습 완료: $greeting"
             tvCommutePrompt.visibility = View.VISIBLE
             btnConfirmCommute.visibility = View.GONE
             tvStatusBadge.text = "스마트 자동 케어 활성"
+
+            // 소음 대비 패널 터치 완료 표시
+            layoutQuickReplyCard.visibility = View.GONE
+
+            // TTS 음성 인사
+            voiceManager.speak("반갑습니다. $greeting")
         } else {
             val prompt = commuteDetector.evaluateCommuteIntent(currentLat, currentLon)
             if (prompt != null) {
                 tvCommutePrompt.text = "💡 스마트 주행 감지: ${prompt.message}"
                 tvCommutePrompt.visibility = View.VISIBLE
                 btnConfirmCommute.visibility = View.VISIBLE
+
+                // 소음 환경 대비 대화면 퀵 리플라이 패널 활성화
+                showQuickReplyPanel(
+                    question = "📢 \"${prompt.message}\"",
+                    yesLabel = "네, 맞춤 출근 시작",
+                    noLabel = "아닙니다 (일반 주행)",
+                    altLabel = "목적지 변경",
+                    onYes = { executeCommuteRoutine(prompt) },
+                    onNo = { dismissQuickReply() },
+                    onAlt = { toggleTravelMode() }
+                )
+
+                // 음성으로 운전자에게 질문
+                val spokenQuestion = if (prompt.commuteType == CommuteType.MORNING) {
+                    "현대자동차 양재 본사로 출근 중이십니까? 화면 터치나 음성으로 알려주세요."
+                } else {
+                    "자택으로 퇴근 중이십니까? 맞춤 프리컨디셔닝을 시작할까요?"
+                }
+                voiceManager.speak(spokenQuestion)
+
                 btnConfirmCommute.setOnClickListener {
-                    currentCommuteMode = prompt.commuteType
-                    tvStatusBadge.text = if (prompt.commuteType == CommuteType.MORNING) "출근 집중 모드 가동 중" else "퇴근 릴랙스 모드 가동 중"
-                    tvCommutePrompt.text = "✅ ${prompt.destination.name} 경로 설정 및 맞춤 케어 루틴이 활성화되었습니다."
-                    btnConfirmCommute.visibility = View.GONE
-                    updateAcousticEnvironment()
-                    updateLightingEnvironment()
-                    updateNewsRecommendation()
-                    requestAiBriefing()
-                    Toast.makeText(this, "${prompt.destination.name} 맞춤 루틴 활성화", Toast.LENGTH_SHORT).show()
+                    executeCommuteRoutine(prompt)
                 }
             } else {
                 tvCommutePrompt.visibility = View.GONE
                 btnConfirmCommute.visibility = View.GONE
+                layoutQuickReplyCard.visibility = View.GONE
             }
         }
     }
 
     /**
-     * @brief OpenAI GPT-4o-mini 기반 하이브리드 음성 브리핑 생성
+     * @brief 출퇴근 맞춤 프리컨디셔닝 및 루틴을 실행합니다.
+     * @param prompt 감지된 출퇴근 정보
+     */
+    private fun executeCommuteRoutine(prompt: CommutePrompt) {
+        currentCommuteMode = prompt.commuteType
+        tvStatusBadge.text = if (prompt.commuteType == CommuteType.MORNING) "출근 집중 모드 가동 중" else "퇴근 릴랙스 모드 가동 중"
+        tvCommutePrompt.text = "✅ ${prompt.destination.name} 경로 설정 및 맞춤 케어 루틴이 활성화되었습니다."
+        btnConfirmCommute.visibility = View.GONE
+        layoutQuickReplyCard.visibility = View.GONE
+
+        // 원격 프리컨디셔닝 및 시동 제어
+        vehicleManager.startPreconditioning(currentTargetTemp, 2) { success ->
+            runOnUiThread {
+                appendLog("출퇴근 케어 공조/시동 자동 가동: ${currentTargetTemp}℃ (결과: $success)")
+            }
+        }
+
+        updateAcousticEnvironment()
+        updateLightingEnvironment()
+        updateNewsRecommendation()
+        requestAiBriefing()
+        Toast.makeText(this, "${prompt.destination.name} 맞춤 루틴 활성화", Toast.LENGTH_SHORT).show()
+    }
+
+    /**
+     * @brief OpenAI GPT-4o-mini 기반 하이브리드 음성 브리핑을 요청하고 TTS로 자동 낭독합니다.
+     * @return Unit
      */
     private fun requestAiBriefing() {
         tvAiBriefing.text = "🤖 탑승자 맞춤 AI 브리핑 생성 중 (날씨, 캘린더, 메일 분석 중)..."
+        btnVoiceReplay.visibility = View.GONE
+
         lifecycleScope.launch {
             val events = calendarMailManager.fetchTodayEvents()
             val emails = calendarMailManager.fetchUnreadImportantEmails()
@@ -203,13 +286,19 @@ class MainActivity : AppCompatActivity() {
                 events,
                 emails
             )
+            latestBriefingText = briefing
             tvAiBriefing.text = "🎙️ [Pleos AI 맞춤 음성 브리핑]\n$briefing"
+            btnVoiceReplay.visibility = View.VISIBLE
             appendLog("AI 브리핑 생성 완료 (GPT-4o-mini)")
+
+            // Pleos Voice Manager를 통한 자동 음성 낭독 (운전자 시선 분산 방지)
+            voiceManager.speak(briefing)
         }
     }
 
     /**
      * @brief 심리음향학 연구 근거 및 YouTube Music 기반 음악 큐레이션 적용
+     * @return Unit
      */
     private fun updateAcousticEnvironment() {
         if (isTravelModeActive) {
@@ -236,6 +325,7 @@ class MainActivity : AppCompatActivity() {
 
     /**
      * @brief 그랜저(GN7) 앰비언트 라이트 색상 동기화
+     * @return Unit
      */
     private fun updateLightingEnvironment() {
         val condition = currentWeather?.conditionTag ?: WeatherConditionTag.CLEAR
@@ -251,7 +341,8 @@ class MainActivity : AppCompatActivity() {
     }
 
     /**
-     * @brief 뉴스 추천 및 피드백 학습
+     * @brief 뉴스 추천 및 피드백 학습 (소음 대비 터치 퀵 리플라이 연동)
+     * @return Unit
      */
     private fun updateNewsRecommendation() {
         val topNews = newsEngine.recommendTopNews()
@@ -263,21 +354,83 @@ class MainActivity : AppCompatActivity() {
         btnNewsDecline.visibility = View.VISIBLE
 
         btnNewsAccept.setOnClickListener {
-            newsEngine.recordUserFeedback(topNews, true)
-            tvNewsSummary.text = "🎙️ [요약 브리핑]:\n${topNews.summary}\n\n(✨ 선호도 학습 완료: '${topNews.category}' 가중치 상승)"
-            btnNewsAccept.visibility = View.GONE
-            btnNewsDecline.visibility = View.GONE
-            Toast.makeText(this, "선호 뉴스 카테고리로 학습되었습니다.", Toast.LENGTH_SHORT).show()
-            appendLog("사용자 관심사 학습: [${topNews.category}] 선호도 +3")
+            onAcceptNewsSummary(topNews)
         }
 
         btnNewsDecline.setOnClickListener {
-            newsEngine.recordUserFeedback(topNews, false)
-            tvNewsSummary.text = "이해했습니다. 다른 카테고리 뉴스를 우선 추천해 드릴게요."
-            btnNewsAccept.visibility = View.GONE
-            btnNewsDecline.visibility = View.GONE
-            appendLog("사용자 관심사 조정: [${topNews.category}] 비선호 반영")
+            onDeclineNewsSummary(topNews)
         }
+    }
+
+    /**
+     * @brief 뉴스 요약 수락 시 음성 낭독 및 선호도 가중치 학습
+     * @param newsItem 요약 대상 뉴스 아이템
+     */
+    private fun onAcceptNewsSummary(newsItem: NewsItem) {
+        newsEngine.recordUserFeedback(newsItem, true)
+        tvNewsSummary.text = "🎙️ [요약 브리핑]:\n${newsItem.summary}\n\n(✨ 선호도 학습 완료: '${newsItem.category}' 가중치 상승)"
+        btnNewsAccept.visibility = View.GONE
+        btnNewsDecline.visibility = View.GONE
+        Toast.makeText(this, "선호 뉴스 카테고리로 학습되었습니다.", Toast.LENGTH_SHORT).show()
+        appendLog("사용자 관심사 학습: [${newsItem.category}] 선호도 +3")
+
+        // 요약 내용을 TTS 음성으로 낭독
+        voiceManager.speak("선택하신 ${newsItem.category} 뉴스 요약입니다. ${newsItem.summary}")
+    }
+
+    /**
+     * @brief 뉴스 요약 거절 시 피드백 학습
+     * @param newsItem 거절 대상 뉴스 아이템
+     */
+    private fun onDeclineNewsSummary(newsItem: NewsItem) {
+        newsEngine.recordUserFeedback(newsItem, false)
+        tvNewsSummary.text = "이해했습니다. 다른 카테고리 뉴스를 우선 추천해 드릴게요."
+        btnNewsAccept.visibility = View.GONE
+        btnNewsDecline.visibility = View.GONE
+        appendLog("사용자 관심사 조정: [${newsItem.category}] 비선호 반영")
+        voiceManager.speak("알겠습니다. 다른 관심 뉴스를 준비하겠습니다.")
+    }
+
+    /**
+     * @brief 소음 환경 대비 대화면 퀵 리플라이 패널을 표시합니다.
+     * @param question 질문 텍스트
+     * @param yesLabel 긍정 버튼 문구
+     * @param noLabel 부정 버튼 문구
+     * @param altLabel 대안/전환 버튼 문구
+     */
+    private fun showQuickReplyPanel(
+        question: String,
+        yesLabel: String,
+        noLabel: String,
+        altLabel: String? = null,
+        onYes: () -> Unit,
+        onNo: () -> Unit,
+        onAlt: (() -> Unit)? = null
+    ) {
+        tvQuickReplyQuestion.text = question
+        btnQuickReplyYes.text = yesLabel
+        btnQuickReplyYes.setOnClickListener { onYes() }
+
+        btnQuickReplyNo.text = noLabel
+        btnQuickReplyNo.setOnClickListener { onNo() }
+
+        if (altLabel != null && onAlt != null) {
+            btnQuickReplyAlt.text = altLabel
+            btnQuickReplyAlt.visibility = View.VISIBLE
+            btnQuickReplyAlt.setOnClickListener { onAlt() }
+        } else {
+            btnQuickReplyAlt.visibility = View.GONE
+        }
+
+        layoutQuickReplyCard.visibility = View.VISIBLE
+    }
+
+    /**
+     * @brief 퀵 리플라이 패널을 닫습니다.
+     */
+    private fun dismissQuickReply() {
+        layoutQuickReplyCard.visibility = View.GONE
+        voiceManager.speak("일반 주행 모드를 유지합니다.")
     }
 
     /**
@@ -310,10 +463,14 @@ class MainActivity : AppCompatActivity() {
             tvTravelBanner.visibility = View.VISIBLE
             btnTriggerTravelMode.text = "출퇴근 일상 모드로 복귀"
             tvStatusBadge.text = "주말 힐링 드라이브 모드"
+
+            // 여행 모드 음성 안내
+            voiceManager.speak("속초 설악 리조트로 여행을 떠나시나요? 힐링 음악과 목적지 주변 꼭 봐야 할 명소를 준비했습니다.")
         } else {
             tvTravelBanner.visibility = View.GONE
             btnTriggerTravelMode.text = "모의 목적지: 주말 콘도/리조트 여행 모드 시연"
             tvStatusBadge.text = "출퇴근 케어 에이전트 대기 중"
+            voiceManager.speak("출퇴근 케어 일상 모드로 복귀합니다.")
         }
         updateAcousticEnvironment()
     }
@@ -323,6 +480,10 @@ class MainActivity : AppCompatActivity() {
         tvLogConsole.text = "• $msg\n$current"
     }
 
+    /**
+     * @brief 대화면 IVI에 최적화된 동적 레이아웃을 생성합니다.
+     * @return 렌더링할 루트 뷰
+     */
     private fun buildContentView(): View {
         val root = ScrollView(this).apply {
             setBackgroundColor(0xFF10131A.toInt())
@@ -346,17 +507,98 @@ class MainActivity : AppCompatActivity() {
             text = "출퇴근 케어 에이전트 대기 중"
             textSize = 14f
             setTextColor(0xFF00E5FF.toInt())
-            setPadding(0, 8, 0, 8)
+            setPadding(0, 8, 0, 4)
         }
         layout.addView(tvStatusBadge)
 
         tvSpeed = TextView(this).apply {
-            text = "차속: 0.0 km/h"
+            text = "현재 차속: 0.0 km/h"
             setTextColor(0xFFBBDEFB.toInt())
             textSize = 14f
             setPadding(0, 0, 0, 16)
         }
         layout.addView(tvSpeed)
+
+        // ========================================================
+        // [🔊 음성 에이전트 & 터치 퀵 리플라이 패널 (소음 안전 대책)]
+        // ========================================================
+        layout.addView(createSectionHeader("🔊 Pleos 음성 비서 & 패널 터치 퀵 리플라이 (소음 안심 케어)"))
+
+        val voiceStatusLayout = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            setPadding(0, 4, 0, 8)
+        }
+        tvVoiceStatus = TextView(this).apply {
+            text = "🔈 [음성 대기] Pleos TTS 엔진 준비 완료"
+            setTextColor(0xFF81D4FA.toInt())
+            textSize = 13f
+            layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1.0f)
+        }
+        btnVoiceStop = Button(this).apply {
+            text = "⏹ 음성 멈춤"
+            setBackgroundColor(0xFFB71C1C.toInt())
+            setTextColor(0xFFFFFFFF.toInt())
+            visibility = View.GONE
+            setOnClickListener { voiceManager.stop() }
+        }
+        btnVoiceReplay = Button(this).apply {
+            text = "▶️ 브리핑 다시 듣기"
+            setBackgroundColor(0xFF00695C.toInt())
+            setTextColor(0xFFFFFFFF.toInt())
+            visibility = View.GONE
+            setOnClickListener {
+                if (latestBriefingText.isNotBlank()) {
+                    voiceManager.speak(latestBriefingText)
+                }
+            }
+        }
+        voiceStatusLayout.addView(tvVoiceStatus)
+        voiceStatusLayout.addView(btnVoiceStop)
+        voiceStatusLayout.addView(btnVoiceReplay)
+        layout.addView(voiceStatusLayout)
+
+        // 소음 환경 대비 대화면 원터치 퀵 리플라이 카드
+        layoutQuickReplyCard = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setBackgroundColor(0xFF1E2638.toInt())
+            setPadding(24, 20, 24, 20)
+            visibility = View.GONE
+        }
+        tvQuickReplyQuestion = TextView(this).apply {
+            setTextColor(0xFFFFEB3B.toInt())
+            textSize = 15f
+            paint.isFakeBoldText = true
+            setPadding(0, 0, 0, 12)
+        }
+        val quickReplyButtonsLayout = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+        }
+        btnQuickReplyYes = Button(this).apply {
+            setBackgroundColor(0xFF1976D2.toInt())
+            setTextColor(0xFFFFFFFF.toInt())
+            layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1.0f).apply {
+                marginEnd = 8
+            }
+        }
+        btnQuickReplyNo = Button(this).apply {
+            setBackgroundColor(0xFF455A64.toInt())
+            setTextColor(0xFFFFFFFF.toInt())
+            layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1.0f).apply {
+                marginEnd = 8
+            }
+        }
+        btnQuickReplyAlt = Button(this).apply {
+            setBackgroundColor(0xFFE65100.toInt())
+            setTextColor(0xFFFFFFFF.toInt())
+            layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1.0f)
+        }
+        quickReplyButtonsLayout.addView(btnQuickReplyYes)
+        quickReplyButtonsLayout.addView(btnQuickReplyNo)
+        quickReplyButtonsLayout.addView(btnQuickReplyAlt)
+
+        layoutQuickReplyCard.addView(tvQuickReplyQuestion)
+        layoutQuickReplyCard.addView(quickReplyButtonsLayout)
+        layout.addView(layoutQuickReplyCard)
 
         // 스마트 출퇴근 감지 및 능동 인사 배너
         tvCommutePrompt = TextView(this).apply {
@@ -554,6 +796,7 @@ class MainActivity : AppCompatActivity() {
 
     override fun onDestroy() {
         super.onDestroy()
+        voiceManager.release()
         vehicleManager.release()
     }
 }

@@ -59,6 +59,7 @@ dependencies {
     // Pleos Playground SDK
     implementation("ai.pleos.playground:Vehicle:2.3.2")
     implementation("ai.pleos.playground:FusedLocation:1.1.3")
+    implementation("ai.pleos.playground:TextToSpeech:3.3.1")
 
     testImplementation("junit:junit:4.13.2")
     androidTestImplementation("androidx.test.ext:junit:1.2.1")

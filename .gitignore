@@ -11,6 +11,8 @@ local.properties
 *.sqlite*
 *.jks
 *.keystore
+*.zip
+*.aar
 
 .idea/
 .tools/

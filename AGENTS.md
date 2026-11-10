@@ -50,6 +50,8 @@ android/app/src/main/java/ai/pleos/commutecare/
   │   │   └── AdaptiveNewsEngine.kt        # 나이/성별 추천 및 "요약해드릴까요?" 피드백 기반 관심사 학습
   │   ├── travel/
   │   │   └── TravelModeEngine.kt          # 주말/외곽 콘도 목적지 감지 및 여행 모드 POI/맛집 큐레이션
+  │   ├── voice/
+  │   │   └── PleosVoiceManager.kt         # Pleos TextToSpeech SDK 기반 차량 음성 안내 및 로컬 TTS 폴백 매니저
   │   └── Models.kt                        # 공통 도메인 데이터 모델
   ├── presentation/
   │   └── MainActivity.kt                  # IVI 전용 대화면 UI 및 에이전트 오케스트레이션
