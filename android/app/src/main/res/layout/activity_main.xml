@@ -158,6 +158,81 @@
         </LinearLayout>
 
         <!-- ========================================== -->
+        <!-- 2-B. Navigation (NaviHelper) & Judge Demo  -->
+        <!-- ========================================== -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="16dp"
+            android:background="@drawable/bg_card_dark"
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
+            android:paddingStart="20dp"
+            android:paddingTop="10dp"
+            android:paddingEnd="20dp"
+            android:paddingBottom="10dp">
+
+            <TextView
+                android:id="@+id/tvNaviStatus"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="🗺️ [내비 연동] Pleos NaviHelper: 미설정 (스마트 패턴 자율 추론 대기)"
+                android:textColor="#A78BFA"
+                android:textSize="13sp"
+                android:textStyle="bold" />
+
+            <Button
+                android:id="@+id/btnNaviSimWork"
+                android:layout_width="wrap_content"
+                android:layout_height="36dp"
+                android:layout_marginStart="8dp"
+                android:background="@drawable/bg_button_dark"
+                android:paddingStart="12dp"
+                android:paddingEnd="12dp"
+                android:text="📍 내비 출근 설정"
+                android:textColor="#38BDF8"
+                android:textSize="12sp" />
+
+            <Button
+                android:id="@+id/btnNaviSimClear"
+                android:layout_width="wrap_content"
+                android:layout_height="36dp"
+                android:layout_marginStart="8dp"
+                android:background="@drawable/bg_button_dark"
+                android:paddingStart="12dp"
+                android:paddingEnd="12dp"
+                android:text="✖ 내비 해제 (자율추론)"
+                android:textColor="#94A3B8"
+                android:textSize="12sp" />
+
+            <Button
+                android:id="@+id/btnNaviSimTravel"
+                android:layout_width="wrap_content"
+                android:layout_height="36dp"
+                android:layout_marginStart="8dp"
+                android:background="@drawable/bg_button_dark"
+                android:paddingStart="12dp"
+                android:paddingEnd="12dp"
+                android:text="🏖️ 내비 여행 설정"
+                android:textColor="#FB923C"
+                android:textSize="12sp" />
+
+            <Button
+                android:id="@+id/btnJudgeDemoTour"
+                android:layout_width="wrap_content"
+                android:layout_height="36dp"
+                android:layout_marginStart="12dp"
+                android:background="@drawable/bg_button_blue"
+                android:paddingStart="16dp"
+                android:paddingEnd="16dp"
+                android:text="🎬 심사 5단계 원클릭 투어"
+                android:textColor="#FFFFFF"
+                android:textSize="12sp"
+                android:textStyle="bold" />
+        </LinearLayout>
+
+        <!-- ========================================== -->
         <!-- 3. Smart Quick Reply Card (소음 안심 케어) -->
         <!-- ========================================== -->
         <LinearLayout

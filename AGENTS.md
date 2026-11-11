@@ -6,7 +6,7 @@
 
 1. **기존 코드를 먼저 분석한 뒤 수정한다.** 실제 Source Code를 README나 임의 추측보다 항상 우선한다.
 2. **현대자동차 Pleos Connect 생태계 및 SDK 호환성 유지**:
-   - `ai.pleos.playground:Vehicle:2.3.2` 및 `FusedLocation:1.1.3` 인터페이스 계약을 준수한다.
+   - `ai.pleos.playground:Vehicle:2.3.2`, `FusedLocation:1.1.3`, `TextToSpeech:3.3.1`, `SpeechToText:3.3.1`, `NaviHelper:3.0.5` 5대 SDK 인터페이스 계약을 준수한다.
    - AAOS(Android Automotive OS) 주행 안전 제한(`CarUxRestrictionsManager`) 및 차속 모니터링 구조를 훼손하지 않는다.
 3. **요구사항이 불명확하면 임의로 구조나 API/config를 남발하지 않는다.**
 4. **불필요한 대규모 리팩터링 및 불필요한 외부 의존성(라이브러리) 추가를 금지한다.**
@@ -31,6 +31,8 @@ android/app/src/main/java/ai/pleos/commutecare/
   ├── data/
   │   ├── location/
   │   │   └── PleosLocationManager.kt      # Pleos FusedLocation SDK 기반 실시간 GPS 및 주기적 날씨 동기화
+  │   ├── navi/
+  │   │   └── PleosNaviManager.kt          # Pleos NaviHelper SDK(3.0.5) 기반 목적지(출근/퇴근/여행) 연동 및 속도제한 수신
   │   └── weather/
   │       └── KmaWeatherClient.kt          # 기상청 단기예보 실황 API 연동 및 Lambert 투영 좌표 변환
   ├── domain/
@@ -41,7 +43,7 @@ android/app/src/main/java/ai/pleos/commutecare/
   │   ├── calendar/
   │   │   └── CalendarMailManager.kt       # 구글/아웃룩 캘린더 일정 및 중요 미확인 메일 연동
   │   ├── commute/
-  │   │   └── SmartCommuteDetector.kt      # 시간대 + GPS 이동 방향 기반 "출근/퇴근 중이십니까?" 지능형 감지
+  │   │   └── SmartCommuteDetector.kt      # 하이브리드 감지 (내비 목적지 우선 + 무설정 시 시계열/GPS 자율 추론)
   │   ├── learning/
   │   │   └── CommutePatternEngine.kt      # 요일/시간대/온도 조절 히스토리 기반 시계열 패턴 학습 (RNN-style)
   │   ├── lighting/
@@ -53,10 +55,10 @@ android/app/src/main/java/ai/pleos/commutecare/
   │   ├── travel/
   │   │   └── TravelModeEngine.kt          # 주말/외곽 콘도 목적지 감지 및 여행 모드 POI/맛집 큐레이션
   │   ├── voice/
-  │   │   └── PleosVoiceManager.kt         # Pleos TextToSpeech SDK 기반 차량 음성 안내 및 로컬 TTS 폴백 매니저
+  │   │   └── PleosVoiceManager.kt         # Pleos TTS & STT SDK 3.3.1 기반 차량 음성 대화 매니저
   │   └── Models.kt                        # 공통 도메인 데이터 모델
   ├── presentation/
-  │   └── MainActivity.kt                  # IVI 전용 대화면 UI 및 에이전트 오케스트레이션
+  │   └── MainActivity.kt                  # IVI 전용 대화면 UI 및 심사 5단계 원클릭 투어 오케스트레이션
   └── vehicle/
       └── CommuteVehicleManager.kt         # Pleos Vehicle SDK (HVAC, Seat, Light) 및 자동 시동/배터리 보호 타이머
 ```

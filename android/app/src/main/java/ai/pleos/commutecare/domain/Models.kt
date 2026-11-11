@@ -11,7 +11,8 @@ data class CommuteSchedule(
 
 enum class CommuteType {
     MORNING,
-    EVENING
+    EVENING,
+    TRAVEL
 }
 
 data class WeatherInfo(

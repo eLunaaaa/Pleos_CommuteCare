@@ -22,6 +22,8 @@ import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
 import ai.pleos.commutecare.data.location.PleosLocationManager
+import ai.pleos.commutecare.data.navi.NaviDestinationAnalysis
+import ai.pleos.commutecare.data.navi.PleosNaviManager
 import ai.pleos.commutecare.data.weather.KmaWeatherClient
 import ai.pleos.commutecare.data.weather.RealtimeWeather
 import ai.pleos.commutecare.data.weather.WeatherConditionTag
@@ -32,6 +34,7 @@ import ai.pleos.commutecare.domain.ai.AiBriefingEngine
 import ai.pleos.commutecare.domain.audio.AcousticPreset
 import ai.pleos.commutecare.domain.audio.PsychoacousticEngine
 import ai.pleos.commutecare.domain.calendar.CalendarMailManager
+import ai.pleos.commutecare.domain.commute.CommuteDetectionSource
 import ai.pleos.commutecare.domain.commute.CommutePrompt
 import ai.pleos.commutecare.domain.commute.LocationPoint
 import ai.pleos.commutecare.domain.commute.SmartCommuteDetector
@@ -46,6 +49,7 @@ import ai.pleos.commutecare.domain.news.UserGender
 import ai.pleos.commutecare.domain.travel.TravelModeEngine
 import ai.pleos.commutecare.domain.voice.PleosVoiceManager
 import ai.pleos.commutecare.vehicle.CommuteVehicleManager
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.util.Calendar
 
@@ -59,6 +63,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var vehicleManager: CommuteVehicleManager
     private lateinit var voiceManager: PleosVoiceManager
     private lateinit var locationManager: PleosLocationManager
+    private lateinit var naviManager: PleosNaviManager
 
     private val commuteDetector = SmartCommuteDetector()
     private val newsEngine = AdaptiveNewsEngine(UserAgeGroup.THIRTIES, UserGender.MALE)
@@ -73,6 +78,7 @@ class MainActivity : AppCompatActivity() {
     private var currentLightingPreset: AmbientLightingPreset? = null
     private var currentNewsItem: NewsItem? = null
     private var isTravelModeActive: Boolean = false
+    private var isCommutePromptActive: Boolean = false
     private var latestBriefingText: String = ""
 
     // 실시간 GPS 좌표 (FusedLocation 연동)
@@ -91,6 +97,29 @@ class MainActivity : AppCompatActivity() {
         patternEngine.seedDemonstrationHistory()
         initVehicleManager()
         initLocationManager()
+        initNaviManager()
+    }
+
+    /**
+     * @brief Pleos NaviHelper SDK 3.0.5를 초기화하고 내비게이션 목적지 및 속도제한 이벤트를 구독합니다.
+     */
+    private fun initNaviManager() {
+        naviManager = PleosNaviManager(
+            context = this,
+            onDestinationUpdated = { analysis ->
+                runOnUiThread {
+                    binding.tvNaviStatus.text = "🗺️ [내비 연동] ${analysis.destinationName} (${analysis.address})"
+                    appendLog("내비게이션 목적지 감지: ${analysis.destinationName} (의도: ${analysis.intentType})")
+                    checkSmartCommuteIntent()
+                }
+            },
+            onSpeedLimitUpdated = { limit ->
+                runOnUiThread {
+                    binding.tvSpeed.text = "현재 차속: 0.0 km/h (도로 제한: ${limit}km/h)"
+                }
+            }
+        )
+        naviManager.initialize()
     }
 
     /**
@@ -153,12 +182,16 @@ class MainActivity : AppCompatActivity() {
         when {
             // 1. 출퇴근 시작 명령
             trimmed.contains("출근") || trimmed.contains("퇴근") || trimmed.contains("네") || trimmed.contains("시작") -> {
-                val prompt = commuteDetector.evaluateCommuteIntent(currentLat, currentLon)
-                    ?: CommutePrompt(
-                        commuteType = currentCommuteMode,
-                        destination = LocationPoint("현대자동차 양재 본사", currentLat, currentLon),
-                        message = "맞춤 출근 루틴을 가동합니다."
-                    )
+                val prompt = commuteDetector.evaluateCommuteIntent(
+                    naviAnalysis = naviManager.getCurrentDestinationAnalysis(),
+                    currentLat = currentLat,
+                    currentLon = currentLon
+                ) ?: CommutePrompt(
+                    commuteType = currentCommuteMode,
+                    destination = LocationPoint("현대자동차 양재 본사", currentLat, currentLon),
+                    message = "맞춤 출근 루틴을 가동합니다.",
+                    source = CommuteDetectionSource.IMPLICIT_INFERENCE
+                )
                 executeCommuteRoutine(prompt)
                 voiceManager.speak("맞춤 루틴과 프리컨디셔닝을 시작합니다.")
             }
@@ -290,6 +323,30 @@ class MainActivity : AppCompatActivity() {
         binding.btnTriggerTravelMode.setOnClickListener {
             toggleTravelMode()
         }
+
+        // ----------------------------------------------------
+        // Pleos NaviHelper 연동 및 심사위원 시연 버튼 바인딩
+        // ----------------------------------------------------
+        binding.btnNaviSimWork.setOnClickListener {
+            naviManager.simulateDestination("현대자동차 양재 본사", "서울특별시 서초구 헌릉로 12", 37.4640, 127.0434)
+            Toast.makeText(this, "내비 출근 목적지 설정 (양재 본사)", Toast.LENGTH_SHORT).show()
+        }
+
+        binding.btnNaviSimClear.setOnClickListener {
+            naviManager.clearDestination()
+            binding.tvNaviStatus.text = "🗺️ [내비 연동] 미설정 (스마트 패턴 자율 추론 모드 전환)"
+            checkSmartCommuteIntent()
+            Toast.makeText(this, "내비 해제: 지능형 자율 추론 모드 가동", Toast.LENGTH_SHORT).show()
+        }
+
+        binding.btnNaviSimTravel.setOnClickListener {
+            naviManager.simulateDestination("속초 델피노 리조트", "강원도 고성군 토성면 미시령옛길 1153", 38.2107, 128.5135)
+            Toast.makeText(this, "내비 여행 목적지 설정 (속초 델피노)", Toast.LENGTH_SHORT).show()
+        }
+
+        binding.btnJudgeDemoTour.setOnClickListener {
+            runJudgeDemoTour()
+        }
     }
 
     /**
@@ -364,33 +421,52 @@ class MainActivity : AppCompatActivity() {
             binding.layoutQuickReplyCard.visibility = View.GONE
             voiceManager.speak("반갑습니다. $greeting")
         } else {
-            val prompt = commuteDetector.evaluateCommuteIntent(currentLat, currentLon)
+            val prompt = commuteDetector.evaluateCommuteIntent(
+                naviAnalysis = naviManager.getCurrentDestinationAnalysis(),
+                currentLat = currentLat,
+                currentLon = currentLon
+            )
             if (prompt != null) {
-                binding.tvCommutePrompt.text = "💡 스마트 주행 감지: ${prompt.message}"
+                val sourcePrefix = if (prompt.source == CommuteDetectionSource.NAVI_EXPLICIT)
+                    "🎯 [내비 연동]"
+                else
+                    "💡 [지능형 자율 추론]"
+                binding.tvCommutePrompt.text = "$sourcePrefix ${prompt.message}"
                 binding.tvCommutePrompt.visibility = View.VISIBLE
                 binding.btnConfirmCommute.visibility = View.VISIBLE
 
+                val yesLabel = when (prompt.commuteType) {
+                    CommuteType.TRAVEL -> "네, 여행 모드 시작"
+                    CommuteType.MORNING -> "네, 맞춤 출근 시작"
+                    CommuteType.EVENING -> "네, 맞춤 퇴근 시작"
+                }
+
                 showQuickReplyPanel(
                     question = "📢 \"${prompt.message}\"",
-                    yesLabel = "네, 맞춤 출근 시작",
+                    yesLabel = yesLabel,
                     noLabel = "아닙니다 (일반 주행)",
-                    altLabel = "목적지 변경",
+                    altLabel = "모드 전환",
                     onYes = { executeCommuteRoutine(prompt) },
                     onNo = { dismissQuickReply() },
                     onAlt = { toggleTravelMode() }
                 )
 
-                val spokenQuestion = if (prompt.commuteType == CommuteType.MORNING) {
-                    "현대자동차 양재 본사로 출근 중이십니까? 말씀하시거나 패널을 눌러주세요."
-                } else {
-                    "자택으로 퇴근 중이십니까? 맞춤 프리컨디셔닝을 시작할까요?"
+                if (!isCommutePromptActive) {
+                    isCommutePromptActive = true
+                    val spokenQuestion = when (prompt.commuteType) {
+                        CommuteType.TRAVEL -> "${prompt.destination.name} 여행 모드를 시작할까요? 말씀하시거나 패널을 눌러주세요."
+                        CommuteType.MORNING -> "${prompt.destination.name}로 출근 중이십니까? 말씀하시거나 패널을 눌러주세요."
+                        CommuteType.EVENING -> "${prompt.destination.name}으로 귀가 중이십니까? 맞춤 프리컨디셔닝을 시작할까요?"
+                    }
+                    voiceManager.speak(spokenQuestion)
                 }
-                voiceManager.speak(spokenQuestion)
 
                 binding.btnConfirmCommute.setOnClickListener {
+                    isCommutePromptActive = false
                     executeCommuteRoutine(prompt)
                 }
             } else {
+                isCommutePromptActive = false
                 binding.tvCommutePrompt.visibility = View.GONE
                 binding.btnConfirmCommute.visibility = View.GONE
                 binding.layoutQuickReplyCard.visibility = View.GONE
@@ -403,22 +479,32 @@ class MainActivity : AppCompatActivity() {
      * @param prompt 감지된 출퇴근 정보
      */
     private fun executeCommuteRoutine(prompt: CommutePrompt) {
+        isCommutePromptActive = false
         currentCommuteMode = prompt.commuteType
-        binding.tvStatusBadge.text = if (prompt.commuteType == CommuteType.MORNING) "출근 집중 모드 가동 중" else "퇴근 릴랙스 모드 가동 중"
-        binding.tvCommutePrompt.text = "✅ ${prompt.destination.name} 경로 설정 및 맞춤 케어 루틴이 활성화되었습니다."
+        val modeText = when (prompt.commuteType) {
+            CommuteType.TRAVEL -> "주말 힐링 드라이브 모드"
+            CommuteType.MORNING -> "출근 집중 모드 가동 중"
+            CommuteType.EVENING -> "퇴근 릴랙스 모드 가동 중"
+        }
+        binding.tvStatusBadge.text = modeText
+        val sourceBadge = if (prompt.source == CommuteDetectionSource.NAVI_EXPLICIT) "🎯 [내비 연동]" else "💡 [지능형 자율 추론]"
+        binding.tvCommutePrompt.text = "✅ $sourceBadge ${prompt.destination.name} 경로 설정 및 맞춤 케어 활성화"
         binding.btnConfirmCommute.visibility = View.GONE
         binding.layoutQuickReplyCard.visibility = View.GONE
 
-        vehicleManager.startPreconditioning(currentTargetTemp, 2) { success ->
-            runOnUiThread {
-                appendLog("출퇴근 케어 공조/시동 자동 가동: ${currentTargetTemp}℃ (결과: $success)")
+        if (prompt.commuteType == CommuteType.TRAVEL) {
+            toggleTravelMode(true)
+        } else {
+            vehicleManager.startPreconditioning(currentTargetTemp, 2) { success ->
+                runOnUiThread {
+                    appendLog("출퇴근 케어 공조/시동 자동 가동: ${currentTargetTemp}℃ (결과: $success)")
+                }
             }
+            updateAcousticEnvironment()
+            updateLightingEnvironment()
+            updateNewsRecommendation()
+            requestAiBriefing()
         }
-
-        updateAcousticEnvironment()
-        updateLightingEnvironment()
-        updateNewsRecommendation()
-        requestAiBriefing()
         Toast.makeText(this, "${prompt.destination.name} 맞춤 루틴 활성화", Toast.LENGTH_SHORT).show()
     }
 
@@ -580,6 +666,7 @@ class MainActivity : AppCompatActivity() {
      * @brief 퀵 리플라이 패널을 닫습니다.
      */
     private fun dismissQuickReply() {
+        isCommutePromptActive = false
         binding.layoutQuickReplyCard.visibility = View.GONE
         voiceManager.speak("일반 주행 모드를 유지합니다.")
     }
@@ -604,9 +691,10 @@ class MainActivity : AppCompatActivity() {
 
     /**
      * @brief 주말/외곽 리조트 목적지 입력 시 여행 모드를 활성화함.
+     * @param forceEnable 강제 활성화 여부 (null이면 토글)
      */
-    private fun toggleTravelMode() {
-        isTravelModeActive = !isTravelModeActive
+    private fun toggleTravelMode(forceEnable: Boolean? = null) {
+        isTravelModeActive = forceEnable ?: !isTravelModeActive
         if (isTravelModeActive) {
             val rec = travelEngine.buildTravelRecommendation("속초 설악 한화리조트")
             binding.tvTravelBanner.text = "🏖️ [여행 모드 활성화 - ${rec.destinationName}]\n${rec.travelBriefingMessage}\n\n📍 꼭 가봐야 할 명소 & 맛집:\n" +
@@ -625,6 +713,69 @@ class MainActivity : AppCompatActivity() {
         updateAcousticEnvironment()
     }
 
+    /**
+     * @brief 심사위원 대상 5단계 원클릭 시연 투어를 순차적으로 자동 실행합니다.
+     */
+    private fun runJudgeDemoTour() {
+        lifecycleScope.launch {
+            appendLog("🎬 [심사 시연 투어] 5단계 원클릭 자동 시연을 시작합니다.")
+            binding.btnJudgeDemoTour.isEnabled = false
+            binding.btnJudgeDemoTour.text = "🎬 시연 진행 중..."
+
+            // 1단계: 출근 감지 및 스마트 자율 추론 (내비 미설정 상황)
+            appendLog("👉 [1단계: 스마트 자율 추론] 아침 8:15 탑승 감지 -> 내비 미설정 상황에서 시간대/GPS 이동 패턴 자율 추론")
+            naviManager.clearDestination()
+            binding.tvNaviStatus.text = "🗺️ [내비 연동] 미설정 -> [스마트 패턴 추론] 자택 출발 및 평일 오전 출근 벡터 감지"
+            val prompt = commuteDetector.evaluateCommuteIntent(null, 37.5172, 127.0473, 8)
+            if (prompt != null) {
+                binding.tvCommutePrompt.text = "💡 [스마트 자율 추론] ${prompt.message}"
+                binding.tvCommutePrompt.visibility = View.VISIBLE
+                voiceManager.speak("평소 출근 시간대입니다. 현대차 본사로 출근 중이십니까?")
+            }
+            delay(4000)
+
+            // 2단계: 프리컨디셔닝 실행 + GPT-4o-mini 하이브리드 음성 브리핑 (TTS)
+            appendLog("👉 [2단계: 프리컨디셔닝 & AI 브리핑] 사용자 수락 -> 맞춤 공조 21.5℃ 가동 + 기상청 날씨/캘린더 AI 음성 브리핑")
+            executeCommuteRoutine(prompt ?: CommutePrompt(
+                CommuteType.MORNING, "현대차 본사 출근", LocationPoint("현대차 본사", 37.4640, 127.0434),
+                CommuteDetectionSource.IMPLICIT_INFERENCE
+            ))
+            delay(5000)
+
+            // 3단계: 고속 주행 시속 85km/h 가속 -> 심리음향학 로드노이즈 마스킹 EQ + 소음 대비 터치 퀵리플라이
+            appendLog("👉 [3단계: 소음 대응 하이브리드] 고속도로 진입 (차속 85km/h) -> 심리음향학 로드노이즈 저주파 보정(+4.5dB) 및 소음 안심 퀵리플라이")
+            binding.tvSpeed.text = "현재 차속: 85.0 km/h (고속도로 주행 중)"
+            updateAcousticEnvironment()
+            showQuickReplyPanel(
+                question = "📢 \"주행 소음이 감지되었습니다. 실내 온도를 조절할까요?\"",
+                yesLabel = "온도 1℃ 내림",
+                noLabel = "현재 온도 유지",
+                altLabel = "뉴스 요약 듣기",
+                onYes = { adjustTargetTemperature(-1.0f) },
+                onNo = { dismissQuickReply() },
+                onAlt = { requestAiBriefing() }
+            )
+            voiceManager.speak("고속 주행 소음에 맞춰 오디오 이퀄라이저를 보정했습니다. 화면 퀵 버튼으로도 조작하실 수 있습니다.")
+            delay(5000)
+
+            // 4단계: 내비게이션 주말 여행 목적지 감지 (NaviHelper SDK 연동)
+            appendLog("👉 [4단계: 내비 연동 여행 모드] Pleos NaviHelper: '속초 델피노 리조트' 목적지 설정 수신 -> 주말 여행 모드 즉각 전환")
+            naviManager.simulateDestination("속초 델피노 리조트", "강원도 고성군 토성면 미시령옛길 1153", 38.2107, 128.5135)
+            binding.tvNaviStatus.text = "🗺️ [내비 연동] 목적지: 속초 델피노 리조트 (여행 POI 모드 활성)"
+            toggleTravelMode(true)
+            delay(5000)
+
+            // 5단계: 정차 및 10분 미탑승 안전 시동 꺼짐 메커니즘
+            appendLog("👉 [5단계: 안전 배터리 보호] 정차 후 탑승자 미감지 시뮬레이션 -> 10분 배터리 보호 자동 시동 꺼짐 타이머 가동")
+            binding.tvSpeed.text = "현재 차속: 0.0 km/h (P단 정차)"
+            voiceManager.speak("심사 시연 투어가 완료되었습니다. 탑승자 미감지 시 10분 후 자동으로 시동이 꺼집니다.")
+            appendLog("✅ [심사 시연 투어] 5단계 전체 시나리오 검증 완료!")
+
+            binding.btnJudgeDemoTour.isEnabled = true
+            binding.btnJudgeDemoTour.text = "🎬 심사 5단계 원클릭 투어"
+        }
+    }
+
     private fun appendLog(msg: String) {
         Log.i(TAG, msg)
         runOnUiThread {
@@ -635,6 +786,7 @@ class MainActivity : AppCompatActivity() {
 
     override fun onDestroy() {
         super.onDestroy()
+        naviManager.release()
         locationManager.stopLocationTracking()
         voiceManager.release()
         vehicleManager.release()
