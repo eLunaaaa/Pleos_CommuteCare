@@ -1,4 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- @file AndroidManifest.xml
+     @brief 차량·위치·음성 권한과 외부 음악 앱 조회 범위를 선언한다. -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
     <uses-permission android:name="android.permission.INTERNET" />
@@ -40,6 +42,8 @@
         </intent>
         <package android:name="ai.pleos.playground.caas" />
         <package android:name="ai.pleos.playground.service.navi" />
+        <package android:name="com.google.android.apps.youtube.music" />
+        <package android:name="org.chromium.webview_shell" />
     </queries>
 
     <uses-feature android:name="android.hardware.type.automotive" android:required="false" />

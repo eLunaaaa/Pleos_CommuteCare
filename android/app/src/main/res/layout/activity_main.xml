@@ -1,4 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- @file activity_main.xml
+     @brief 음성 조작 영역과 주행 제한 시 숨기는 상세 대시보드·진단 영역을 배치한다. -->
 <ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
@@ -235,6 +237,15 @@
         <!-- ========================================== -->
         <!-- 3. Smart Quick Reply Card (소음 안심 케어) -->
         <!-- ========================================== -->
+        <TextView
+            android:id="@+id/tvDrivingStatus"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:padding="20dp"
+            android:text="주행 제한 또는 차량 상태 확인 중입니다. 음성으로 온도 조절과 맞춤 케어를 요청할 수 있습니다."
+            android:textColor="#FFFFFF"
+            android:textSize="20sp" />
+
         <LinearLayout
             android:id="@+id/layoutQuickReplyCard"
             android:layout_width="match_parent"
@@ -307,6 +318,7 @@
         <!-- 4. Two-Column Wide Screen Dashboard        -->
         <!-- ========================================== -->
         <LinearLayout
+            android:id="@+id/layoutDetailedDashboard"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:baselineAligned="false"
@@ -332,7 +344,7 @@
                     <TextView
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="🎙️ Pleos 하이브리드 AI 맞춤 브리핑"
+                        android:text="🎙️ AI 맞춤 브리핑 (일정·메일: 시연 데이터)"
                         android:textColor="#00E5FF"
                         android:textSize="16sp"
                         android:textStyle="bold" />
@@ -514,7 +526,7 @@
                             android:id="@+id/tvTargetTempDisplay"
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:text="목표 공조: 21.5℃ (학습된 최적 온도)"
+                            android:text="목표 공조: 22.0℃"
                             android:textColor="#38BDF8"
                             android:textSize="16sp"
                             android:textStyle="bold" />
@@ -560,7 +572,7 @@
                         android:layout_width="match_parent"
                         android:layout_height="44dp"
                         android:background="@drawable/bg_button_blue"
-                        android:text="자동 원격 시동 및 프리컨디셔닝 실행 (10분 미탑승 자동OFF)"
+                        android:text="공조·열선 프리컨디셔닝 (미탑승 시 10분 후 종료)"
                         android:textColor="#FFFFFF"
                         android:textSize="13sp"
                         android:textStyle="bold" />
@@ -640,6 +652,17 @@
                         android:text="차량 소음 마스킹 및 각성도 연구 근거..."
                         android:textColor="#94A3B8"
                         android:textSize="12sp" />
+
+                    <Button
+                        android:id="@+id/btnPlayMusic"
+                        android:layout_width="match_parent"
+                        android:layout_height="38dp"
+                        android:layout_marginTop="10dp"
+                        android:background="@drawable/bg_button_blue"
+                        android:text="▶ YouTube Music 연동 재생"
+                        android:textColor="#FFFFFF"
+                        android:textSize="13sp"
+                        android:textStyle="bold" />
                 </LinearLayout>
 
                 <!-- Card: Travel Mode (Weekend Resort) -->
@@ -687,6 +710,7 @@
         <!-- 5. Diagnostic Log Console                  -->
         <!-- ========================================== -->
         <LinearLayout
+            android:id="@+id/layoutDiagnostics"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:background="@drawable/bg_card_dark"

@@ -1,3 +1,7 @@
+/**
+ * @file build.gradle.kts
+ * @brief Pleos SDK 및 Android 빌드를 구성하고 배포용 APK에서 로컬 키를 제외할 옵션을 제공한다.
+ */
 import java.util.Properties
 
 plugins {
@@ -25,15 +29,17 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
         // Local Secret Properties Loading (.env / local.properties)
+        // Git에 포함할 APK는 -PexcludeLocalSecrets=true로 빌드해 로컬 키를 제외한다.
+        val excludeLocalSecrets = providers.gradleProperty("excludeLocalSecrets").orNull == "true"
         val envFile = rootProject.file("../.env")
         val envProperties = Properties()
-        if (envFile.exists()) {
+        if (!excludeLocalSecrets && envFile.exists()) {
             envFile.inputStream().use { envProperties.load(it) }
         }
 
-        val openAiApiKey = envProperties.getProperty("OPENAI_API_KEY")
+        val openAiApiKey = if (excludeLocalSecrets) "" else envProperties.getProperty("OPENAI_API_KEY")
             ?: System.getenv("OPENAI_API_KEY") ?: ""
-        val kmaServiceKey = envProperties.getProperty("KMA_SERVICE_KEY")
+        val kmaServiceKey = if (excludeLocalSecrets) "" else envProperties.getProperty("KMA_SERVICE_KEY")
             ?: System.getenv("KMA_SERVICE_KEY") ?: ""
 
         buildConfigField("String", "OPENAI_API_KEY", "\"$openAiApiKey\"")

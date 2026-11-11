@@ -1,3 +1,7 @@
+/**
+ * @file CalendarMailManager.kt
+ * @brief 계정 연결 전 브리핑 시연에 사용할 고정 일정·메일 데이터를 제공한다. 실제 계정 동기화는 미구현이다.
+ */
 package ai.pleos.commutecare.domain.calendar
 
 data class WorkEvent(
@@ -27,12 +31,16 @@ enum class EventSource {
 }
 
 /**
- * 구글 캘린더 및 마이크로소프트 365(아웃룩) 연동 매니저
- * - OAuth 2.0 Device Flow 또는 REST Sync 구조 제공
- * - 시연/대회 환경 및 오프라인 상태에서도 완벽하게 테스트 가능한 Mock Provider 기본 내장
+ * @brief 캘린더·메일 계정 연결을 대체하는 시연용 고정 데이터 제공자.
+ * 실제 Google/Outlook OAuth 및 REST 동기화는 구현하지 않았다.
  */
 class CalendarMailManager {
 
+    /**
+     * @brief 계정 연동 전 시연용 고정 일정을 반환한다.
+     * @return 시연 일정 목록
+     * @throws 없음
+     */
     fun fetchTodayEvents(): List<WorkEvent> {
         return listOf(
             WorkEvent(
@@ -63,6 +71,11 @@ class CalendarMailManager {
         )
     }
 
+    /**
+     * @brief 계정 연동 전 시연용 고정 메일을 반환한다.
+     * @return 시연 메일 목록
+     * @throws 없음
+     */
     fun fetchUnreadImportantEmails(): List<WorkEmail> {
         return listOf(
             WorkEmail(

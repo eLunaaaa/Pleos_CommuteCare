@@ -65,13 +65,20 @@ class SmartCommuteDetector(
      * @param currentLat 현재 차량 위도 (FusedLocation)
      * @param currentLon 현재 차량 경도 (FusedLocation)
      * @param hourOfDay 현재 시간 (24시간 형식)
+     * @param dayOfWeek 현재 요일 (주말에는 암시적 통근 추론 금지)
+     * @param previousLocation 이전 GPS 위치 (이동 방향 검증용)
+     * @param learnedDepartureEligible 현재 시간대의 학습 출발 패턴 충족 여부
+     * @throws 없음
      * @return CommutePrompt 감지된 의도 및 사용자 안내 제안 (해당 없으면 null)
      */
     fun evaluateCommuteIntent(
         naviAnalysis: NaviDestinationAnalysis?,
         currentLat: Double,
         currentLon: Double,
-        hourOfDay: Int = Calendar.getInstance().get(Calendar.HOUR_OF_DAY)
+        hourOfDay: Int = Calendar.getInstance().get(Calendar.HOUR_OF_DAY),
+        dayOfWeek: Int = Calendar.getInstance().get(Calendar.DAY_OF_WEEK),
+        previousLocation: LocationPoint? = null,
+        learnedDepartureEligible: Boolean = false
     ): CommutePrompt? {
 
         // =========================================================================
@@ -106,18 +113,25 @@ class SmartCommuteDetector(
                         confidence = 1.0f
                     )
                 }
+                null -> return null // 일반 목적지도 명시적 의도이므로 통근 추론으로 덮어쓰지 않는다.
             }
         }
 
         // =========================================================================
         // [전략 2] 내비를 찍지 않은 경우 (우선순위 2 - 시계열 패턴 + GPS 자율 추론)
         // =========================================================================
+        if (dayOfWeek == Calendar.SATURDAY || dayOfWeek == Calendar.SUNDAY) return null
+        val previous = previousLocation ?: return null
+        val movedKm = calculateDistanceKm(previous.latitude, previous.longitude, currentLat, currentLon)
+        if (movedKm < 0.01 || movedKm > 2.0) return null // 정차 및 GPS 순간 점프 제외
+        val previousHomeKm = calculateDistanceKm(previous.latitude, previous.longitude, homeLocation.latitude, homeLocation.longitude)
+        val previousOfficeKm = calculateDistanceKm(previous.latitude, previous.longitude, officeLocation.latitude, officeLocation.longitude)
         val distToHomeKm = calculateDistanceKm(currentLat, currentLon, homeLocation.latitude, homeLocation.longitude)
         val distToOfficeKm = calculateDistanceKm(currentLat, currentLon, officeLocation.latitude, officeLocation.longitude)
 
         // 1. 오전 출근 시간대 (07:00 ~ 10:30)
         if (hourOfDay in 7..10) {
-            if (distToHomeKm < 4.0 || distToOfficeKm > 2.0) {
+            if ((distToHomeKm < 4.0 || learnedDepartureEligible) && previousOfficeKm - distToOfficeKm > 0.01 && distToOfficeKm > 0.2) {
                 return CommutePrompt(
                     commuteType = CommuteType.MORNING,
                     message = "평소 출근 시간대 및 자택 출발 이동이 감지되었습니다. ${officeLocation.name}로 출근 중이십니까?",
@@ -130,7 +144,7 @@ class SmartCommuteDetector(
 
         // 2. 오후/저녁 퇴근 시간대 (17:00 ~ 21:30)
         if (hourOfDay in 17..21) {
-            if (distToOfficeKm < 4.0 || distToHomeKm > 2.0) {
+            if ((distToOfficeKm < 4.0 || learnedDepartureEligible) && previousHomeKm - distToHomeKm > 0.01 && distToHomeKm > 0.2) {
                 return CommutePrompt(
                     commuteType = CommuteType.EVENING,
                     message = "퇴근 시간대 및 회사 출발 이동이 감지되었습니다. ${homeLocation.name}으로 귀가 중이십니까?",
@@ -151,6 +165,7 @@ class SmartCommuteDetector(
      * @param lat2 지점2 위도
      * @param lon2 지점2 경도
      * @return 두 지점 간의 직선 거리 (km)
+     * @throws 없음
      */
     fun calculateDistanceKm(lat1: Double, lon1: Double, lat2: Double, lon2: Double): Double {
         val r = 6371.0 // 지구 반지름 (km)

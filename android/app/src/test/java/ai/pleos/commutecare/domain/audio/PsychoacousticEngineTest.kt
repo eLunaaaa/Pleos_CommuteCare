@@ -59,4 +59,15 @@ class PsychoacousticEngineTest {
         assertEquals("Morning Dopamine & Vocal Focus", preset.presetName)
         assertTrue(preset.scientificBasis.contains("수면 관성"))
     }
+
+    /** @brief 고속 추천 보정은 증가하되 상한을 넘지 않고 비정상 차속은 정차로 처리한다. @return Unit @throws 없음 */
+    @Test fun speedCorrectionIsBoundedAndHandlesInvalidSpeed() {
+        val parked = PsychoacousticEngine.determineAudioPreset(CommuteType.MORNING, WeatherConditionTag.CLEAR, 5, 0f)
+        val highway = PsychoacousticEngine.determineAudioPreset(CommuteType.MORNING, WeatherConditionTag.CLEAR, 5, 85f)
+        val extreme = PsychoacousticEngine.determineAudioPreset(CommuteType.MORNING, WeatherConditionTag.CLEAR, 5, 999f)
+        val invalid = PsychoacousticEngine.determineAudioPreset(CommuteType.MORNING, WeatherConditionTag.CLEAR, 5, Float.NaN)
+        assertTrue(highway.bassGainDb > parked.bassGainDb)
+        assertEquals(highway.bassGainDb, extreme.bassGainDb, 0.01f)
+        assertEquals(parked, invalid)
+    }
 }

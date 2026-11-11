@@ -1,3 +1,7 @@
+/**
+ * @file PsychoacousticEngine.kt
+ * @brief 기상·계절·통근·차속별 EQ 추천값을 계산한다. 실제 오디오 효과 적용은 수행하지 않는다.
+ */
 package ai.pleos.commutecare.domain.audio
 
 import ai.pleos.commutecare.data.weather.WeatherConditionTag
@@ -20,12 +24,22 @@ data class AcousticPreset(
  */
 object PsychoacousticEngine {
 
+    /**
+     * @brief 기존 심리음향학 프리셋에 차속별 저역 추천 보정을 더한다 (실제 오디오 미적용).
+     * @param commuteType 출퇴근 모드
+     * @param weatherCondition 기상 상태
+     * @param month 현재 월 (1~12)
+     * @param speedKmh 실제 차속 (km/h)
+     * @return 추천 EQ 프리셋
+     * @throws 없음
+     */
     fun determineAudioPreset(
         commuteType: CommuteType,
         weatherCondition: WeatherConditionTag,
-        month: Int = Calendar.getInstance().get(Calendar.MONTH) + 1
+        month: Int = Calendar.getInstance().get(Calendar.MONTH) + 1,
+        speedKmh: Float = 0f
     ): AcousticPreset {
-        return when {
+        val preset = when {
             // 1. 우천/강설 상황: 빗방울 충격음(2kHz~6kHz 고주파) 및 타이어 수막 노이즈 마스킹
             weatherCondition == WeatherConditionTag.RAINY -> AcousticPreset(
                 presetName = "Rainy Comfort & Speech Clarity",
@@ -81,5 +95,12 @@ object PsychoacousticEngine {
                 trebleGainDb = 0.0f
             )
         }
+        // 고속 노면 소음에 대한 추천 보정은 제품 튜닝 휴리스틱이며 논문 검증값이 아니다.
+        val speed = if (speedKmh.isFinite()) speedKmh.coerceIn(0f, 130f) else 0f
+        val bassCorrection = ((speed - 40f) / 45f).coerceIn(0f, 1f) * 1.5f
+        return if (bassCorrection == 0f) preset else preset.copy(
+            bassGainDb = preset.bassGainDb + bassCorrection,
+            scientificBasis = preset.scientificBasis + " / 차속 기반 저역 추천 +%.1fdB (휴리스틱·미적용)".format(bassCorrection)
+        )
     }
 }

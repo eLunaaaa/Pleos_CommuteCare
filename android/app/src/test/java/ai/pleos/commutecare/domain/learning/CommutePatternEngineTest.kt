@@ -61,4 +61,36 @@ class CommutePatternEngineTest {
         // 22.0에서 20.0 방향으로 수렴하여 21.0 미만으로 내려왔는지 확인
         assertTrue("목표 온도가 사용자의 선호(20℃) 방향으로 수렴해야 함", pattern.personalizedTargetTemp < 21.0f)
     }
+
+    /** @brief HHmm 정수 평균 대신 실제 분 단위로 평균하여 08:50과 09:10을 09:00으로 예측한다. @return Unit @throws 없음 */
+    @Test fun averagesTimeInMinutes() {
+        engine.recordTripEvent(Calendar.MONDAY, 850, 22f, true)
+        engine.recordTripEvent(Calendar.MONDAY, 910, 22f, true)
+        assertEquals(900, engine.predictPattern(Calendar.MONDAY, 900, true).predictedDepartureHourMinute)
+    }
+
+    /** @brief 같은 요일이어도 출발 시간대가 다르면 자동 인사를 해제하지 않는다. @return Unit @throws 없음 */
+    @Test fun ignoresTripsOutsideDepartureWindow() {
+        repeat(3) { engine.recordTripEvent(Calendar.MONDAY, 815, 22f, true) }
+        assertFalse(engine.predictPattern(Calendar.MONDAY, 1400, true).isAutoGreetingUnlocked)
+    }
+
+    /** @brief 온도 버튼 3회 조작만으로 3회 통근했다고 학습하지 않는다. @return Unit @throws 없음 */
+    @Test fun manualTemperatureDoesNotInflateTripCount() {
+        repeat(3) { engine.updateTemperaturePreference(20f) }
+        val pattern = engine.predictPattern(Calendar.MONDAY, 815, true)
+        assertFalse(pattern.isAutoGreetingUnlocked)
+        assertTrue(pattern.personalizedTargetTemp < 21f)
+    }
+
+    /** @brief 재시작 시 저장한 이력과 별도의 EMA 상태를 함께 복원한다. @return Unit @throws 없음 */
+    @Test fun restoresHistoryAndLatestPreference() {
+        val trips = List(3) { TripLog(Calendar.MONDAY, 815, 22f, true) }
+        var saveCalls = 0
+        val restored = CommutePatternEngine(trips, { saveCalls++ }, 20.5f, { saveCalls++ })
+        assertEquals(0, saveCalls)
+        val pattern = restored.predictPattern(Calendar.MONDAY, 815, true)
+        assertTrue(pattern.isAutoGreetingUnlocked)
+        assertEquals(20.5f, pattern.personalizedTargetTemp, 0.01f)
+    }
 }

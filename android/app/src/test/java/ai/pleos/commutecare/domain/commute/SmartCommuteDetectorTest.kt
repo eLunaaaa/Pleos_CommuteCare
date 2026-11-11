@@ -10,6 +10,7 @@ import ai.pleos.commutecare.domain.CommuteType
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
+import java.util.Calendar
 import org.junit.Before
 import org.junit.Test
 
@@ -45,7 +46,8 @@ class SmartCommuteDetectorTest {
             naviAnalysis = naviAnalysis,
             currentLat = 37.5172,
             currentLon = 127.0473,
-            hourOfDay = 8
+            hourOfDay = 8, dayOfWeek = Calendar.MONDAY,
+            previousLocation = LocationPoint("이전", 37.5174, 127.0470)
         )
 
         assertNotNull("내비 목적지가 회사일 때 출근 프롬프트가 생성되어야 함", prompt)
@@ -92,7 +94,8 @@ class SmartCommuteDetectorTest {
             naviAnalysis = null,
             currentLat = 37.5170, // 자택 근처
             currentLon = 127.0470,
-            hourOfDay = 8
+            hourOfDay = 8, dayOfWeek = Calendar.MONDAY,
+            previousLocation = LocationPoint("이전", 37.5174, 127.0470)
         )
 
         assertNotNull("내비 미설정 시에도 시간대+위치로 출근 감지되어야 함", prompt)
@@ -110,7 +113,8 @@ class SmartCommuteDetectorTest {
             naviAnalysis = null,
             currentLat = 37.4641, // 양재 본사 근처
             currentLon = 127.0435,
-            hourOfDay = 18
+            hourOfDay = 18, dayOfWeek = Calendar.MONDAY,
+            previousLocation = LocationPoint("이전", 37.4638, 127.0435)
         )
 
         assertNotNull("내비 미설정 시에도 퇴근 시간대 귀가 감지되어야 함", prompt)
@@ -131,5 +135,22 @@ class SmartCommuteDetectorTest {
         )
 
         assertNull("출퇴근 시간이 아닌 낮 2시에는 감지되지 않아야 함", prompt)
+    }
+
+    /** @brief 주말, 정차, 먼 지역과 역방향 이동은 통근으로 오인하지 않는다. @return Unit @throws 없음 */
+    @Test fun rejectsWeekendStationaryRemoteAndWrongDirection() {
+        val prior = LocationPoint("이전", 37.5174, 127.0470)
+        assertNull(detector.evaluateCommuteIntent(null, 37.5170, 127.0470, 8, Calendar.SUNDAY, prior))
+        assertNull(detector.evaluateCommuteIntent(null, 37.5174, 127.0470, 8, Calendar.MONDAY, prior))
+        assertNull(detector.evaluateCommuteIntent(null, 35.1795, 129.0756, 8, Calendar.MONDAY,
+            LocationPoint("부산", 35.1798, 129.0756)))
+        assertNull(detector.evaluateCommuteIntent(null, 37.5180, 127.0470, 8, Calendar.MONDAY, prior))
+    }
+
+    /** @brief 일반 내비 목적지가 존재하면 암시적 통근 추론으로 덮어쓰지 않는다. @return Unit @throws 없음 */
+    @Test fun explicitOrdinaryDestinationBlocksImplicitCommute() {
+        val ordinary = NaviDestinationAnalysis("병원", "서울", 37.5, 127.0, null, 1000, 100)
+        assertNull(detector.evaluateCommuteIntent(ordinary, 37.5170, 127.0470, 8, Calendar.MONDAY,
+            LocationPoint("이전", 37.5174, 127.0470)))
     }
 }
