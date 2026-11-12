@@ -132,6 +132,12 @@ class MainActivity : AppCompatActivity() {
         initVehicleManager()
         initLocationManager()
         checkSmartCommuteIntent()
+
+        // 탑승 시작 시 운전자 개인화 환영 음성
+        lifecycleScope.launch {
+            delay(1200)
+            voiceManager.speak("민석님, 안녕하세요! Pleos 출퇴근 맞춤 케어를 시작합니다.")
+        }
     }
 
     /**
@@ -173,11 +179,11 @@ class MainActivity : AppCompatActivity() {
             runOnUiThread {
                 if (isSpeaking) {
                     val preview = if (speakingText != null) " - \"${speakingText.take(24)}...\"" else ""
-                    binding.tvVoiceStatus.text = "🔊 [음성 안내 중] Pleos TTS 출력$preview"
+                    binding.tvVoiceStatus.text = "[음성 안내 중] Pleos TTS 출력$preview"
                     binding.btnVoiceStop.visibility = View.VISIBLE
                 } else {
                     if (!voiceManager.isListening) {
-                        binding.tvVoiceStatus.text = "🔈 [음성 대기] Pleos On-Device TTS/STT 준비 완료"
+                        binding.tvVoiceStatus.text = "Pleos 음성 비서 준비 완료 (온디바이스)"
                         binding.btnVoiceStop.visibility = View.GONE
                     }
                 }
@@ -188,14 +194,14 @@ class MainActivity : AppCompatActivity() {
         voiceManager.onListeningStateChangeListener = { isListening, partialText ->
             runOnUiThread {
                 if (isListening) {
-                    binding.tvVoiceStatus.text = "🎙️ [음성 청취 중] ${partialText ?: "말씀해 주세요..."}"
-                    binding.btnVoiceMic.text = "🔴 듣는 중... (터치 시 중단)"
+                    binding.tvVoiceStatus.text = "[음성 청취 중] ${partialText ?: "말씀해 주세요..."}"
+                    binding.btnVoiceMic.text = "청취 중... (터치 시 중단)"
                     binding.btnVoiceMic.setBackgroundResource(ai.pleos.commutecare.R.drawable.bg_button_orange)
                 } else {
-                    binding.btnVoiceMic.text = "🎤 음성 명령 말하기"
+                    binding.btnVoiceMic.text = "음성 명령 시작"
                     binding.btnVoiceMic.setBackgroundResource(ai.pleos.commutecare.R.drawable.bg_button_blue)
                     if (!voiceManager.isSpeaking) {
-                        binding.tvVoiceStatus.text = "🔈 [음성 대기] Pleos On-Device TTS/STT 준비 완료"
+                        binding.tvVoiceStatus.text = "Pleos 음성 비서 준비 완료 (온디바이스)"
                     }
                 }
             }
@@ -217,7 +223,7 @@ class MainActivity : AppCompatActivity() {
      */
     private fun handleVoiceCommand(command: String) {
         val trimmed = command.trim()
-        appendLog("🎙️ 음성 명령 인식: \"$trimmed\"")
+        appendLog("[음성 명령 인식] \"$trimmed\"")
         Toast.makeText(this, "음성 명령: \"$trimmed\"", Toast.LENGTH_SHORT).show()
 
         when (VoiceCommandParser.parse(trimmed)) {
@@ -269,7 +275,7 @@ class MainActivity : AppCompatActivity() {
             currentLat = lat
             currentLon = lon
 
-            binding.tvLocationGps.text = "📍 실시간 GPS: %.4f°N, %.4f°E (FusedLocation)".format(lat, lon)
+            binding.tvLocationGps.text = "GPS: %.4f°N, %.4f°E (FusedLocation)".format(lat, lon)
             checkSmartCommuteIntent()
         }
 
@@ -352,7 +358,7 @@ class MainActivity : AppCompatActivity() {
 
         binding.btnNaviSimClear.setOnClickListener {
             naviManager.clearDestination()
-            binding.tvNaviStatus.text = "🗺️ [내비 연동] 미설정 (스마트 패턴 자율 추론 모드 전환)"
+            binding.tvNaviStatus.text = "[내비게이션] 미설정 (지능형 자율 추론 모드 전환)"
             checkSmartCommuteIntent()
             Toast.makeText(this, "내비 해제: 지능형 자율 추론 모드 가동", Toast.LENGTH_SHORT).show()
         }
@@ -409,11 +415,11 @@ class MainActivity : AppCompatActivity() {
             val weather = KmaWeatherClient.fetchCurrentWeather(lat, lon)
             if (weather != null) currentWeather = weather
             if (weather != null) {
-                binding.tvWeatherDetails.text = "⛅ [기상청 초단기실황] ${weather.description} (풍속 ${weather.windSpeedMps}m/s)"
+                binding.tvWeatherDetails.text = "기상청 초단기실황: ${weather.description} (풍속 ${weather.windSpeedMps}m/s)"
                 appendLog("기상청 날씨 수신 성공: ${weather.temperatureCelsius}℃, PTY=${weather.precipitationType}")
             } else {
-                binding.tvWeatherDetails.text = currentWeather?.let { "⛅ [이전 관측값 · 갱신 실패] ${it.description}" }
-                    ?: "⛅ 날씨 정보를 확인할 수 없습니다."
+                binding.tvWeatherDetails.text = currentWeather?.let { "이전 관측값: ${it.description}" }
+                    ?: "날씨 정보를 확인할 수 없습니다."
                 appendLog("기상청 API 실패: 이전 관측값 또는 날씨 미확인 상태 유지")
             }
             updateAcousticEnvironment()
@@ -537,8 +543,8 @@ class MainActivity : AppCompatActivity() {
             CommuteType.EVENING -> "퇴근 릴랙스 모드 가동 중"
         }
         binding.tvStatusBadge.text = modeText
-        val sourceBadge = if (prompt.source == CommuteDetectionSource.NAVI_EXPLICIT) "🎯 [내비 연동]" else "💡 [지능형 자율 추론]"
-        binding.tvCommutePrompt.text = "✅ $sourceBadge ${prompt.destination.name} 맞춤 케어 활성화"
+        val sourceBadge = if (prompt.source == CommuteDetectionSource.NAVI_EXPLICIT) "[내비 연동]" else "[지능형 자율 추론]"
+        binding.tvCommutePrompt.text = "$sourceBadge ${prompt.destination.name} 맞춤 케어 활성화"
         binding.btnConfirmCommute.visibility = View.GONE
         binding.layoutQuickReplyCard.visibility = View.GONE
 
@@ -564,7 +570,7 @@ class MainActivity : AppCompatActivity() {
      * @throws 없음
      */
     private fun requestAiBriefing() {
-        binding.tvAiBriefing.text = "🤖 탑승자 맞춤 AI 브리핑 생성 중 (날씨, 캘린더, 메일 분석 중)..."
+        binding.tvAiBriefing.text = "탑승자 맞춤 AI 브리핑 생성 중..."
         binding.btnVoiceReplay.visibility = View.GONE
 
         briefingJob?.cancel()
@@ -580,7 +586,7 @@ class MainActivity : AppCompatActivity() {
             latestBriefingText = briefing
             binding.tvAiBriefing.text = briefing
             binding.btnVoiceReplay.visibility = View.VISIBLE
-            appendLog("AI/로컬 폴백 브리핑 생성 완료 (일정·메일은 시연 데이터)")
+            appendLog("AI 브리핑 생성 완료 (일정·메일은 시연 데이터)")
 
             voiceManager.speak(briefing)
         }
@@ -607,12 +613,12 @@ class MainActivity : AppCompatActivity() {
 
         val track = musicManager.getPresetTrack(if (isTravelModeActive) "TRAVEL" else if (currentCommuteMode == CommuteType.MORNING) "MORNING" else "EVENING")
 
-        binding.tvAudioInfo.text = "🎵 ${track.title} - ${track.artist} (${track.contextTag})\n[제안 EQ · 실제 음향 미적용: Bass ${bassSign}%.1fdB, Mid +%.1fdB, Treble ${trebleSign}%.1fdB]".format(
+        binding.tvAudioInfo.text = "${track.title} - ${track.artist} (${track.contextTag})\n[제안 EQ: Bass ${bassSign}%.1fdB, Mid +%.1fdB, Treble ${trebleSign}%.1fdB]".format(
             preset.bassGainDb,
             preset.midGainDb,
             preset.trebleGainDb
         )
-        binding.tvAcousticBasis.text = "🔬 음향학적 근거: ${preset.scientificBasis}"
+        binding.tvAcousticBasis.text = "음향학적 근거: ${preset.scientificBasis}"
     }
 
     /**
@@ -633,17 +639,17 @@ class MainActivity : AppCompatActivity() {
         val result = musicManager.launchTrackPlayback(this, track, isUxRestricted)
         when (result) {
             is MusicLaunchResult.SuccessApp -> {
-                appendLog("🎵 YouTube Music 앱 연동 성공: ${track.artist} - ${track.title}")
+                appendLog("[YouTube Music 앱 연동 성공] ${track.artist} - ${track.title}")
                 Toast.makeText(this, "YouTube Music 앱에서 재생합니다: ${track.title}", Toast.LENGTH_SHORT).show()
                 voiceManager.speak("유튜브 뮤직으로 ${track.title} 페이지를 엽니다.")
             }
             is MusicLaunchResult.SuccessBrowser -> {
-                appendLog("🌐 YouTube Music 웹 플레이어 연동 성공: ${track.artist} - ${track.title}")
+                appendLog("[YouTube Music 웹 플레이어 연동 성공] ${track.artist} - ${track.title}")
                 Toast.makeText(this, "YouTube Music 웹 재생: ${track.title}", Toast.LENGTH_SHORT).show()
                 voiceManager.speak("${track.title} 페이지를 엽니다.")
             }
             is MusicLaunchResult.Failure -> {
-                appendLog("⚠️ 음악 재생 실패: ${result.reason}")
+                appendLog("[음악 재생 실패] ${result.reason}")
                 Toast.makeText(this, "음악 연동 실패: ${result.reason}", Toast.LENGTH_SHORT).show()
             }
         }
@@ -659,8 +665,8 @@ class MainActivity : AppCompatActivity() {
         val preset = AmbientLightingEngine.determineLightingPreset(currentCommuteMode, condition)
         currentLightingPreset = preset
 
-        binding.tvLightingInfo.text = "💡 무드램프: ${preset.colorNameKo} (${preset.hexString}) [${preset.presetName}]"
-        binding.tvLightingBasis.text = "🔬 조명공학 근거: ${preset.scientificBasis}\n[논문: ${preset.referencePaper}]"
+        binding.tvLightingInfo.text = "무드램프: ${preset.colorNameKo} (${preset.hexString}) [${preset.presetName}]"
+        binding.tvLightingBasis.text = "조명공학 근거: ${preset.scientificBasis}\n[논문: ${preset.referencePaper}]"
 
         vehicleManager.setAmbientMoodLight(preset.colorHex) { success ->
             if (success) appendLog("GN7 무드램프 색상 자동 동기화 완료: ${preset.colorNameKo}")
@@ -698,7 +704,7 @@ class MainActivity : AppCompatActivity() {
      */
     private fun onAcceptNewsSummary(newsItem: NewsItem) {
         newsEngine.recordUserFeedback(newsItem, true)
-        binding.tvNewsSummary.text = "🎙️ [3줄 요약]:\n${newsItem.summary}\n\n(✨ 선호도 학습 완료: '${newsItem.category}' 가중치 상승)"
+        binding.tvNewsSummary.text = "[3줄 요약]:\n${newsItem.summary}\n\n(선호도 학습 완료: '${newsItem.category}' 가중치 상승)"
         binding.btnNewsAccept.visibility = View.GONE
         binding.btnNewsDecline.visibility = View.GONE
         Toast.makeText(this, "선호 뉴스 카테고리로 학습되었습니다.", Toast.LENGTH_SHORT).show()
@@ -828,7 +834,7 @@ class MainActivity : AppCompatActivity() {
         isTravelModeActive = forceEnable ?: !isTravelModeActive
         if (isTravelModeActive) {
             val rec = travelEngine.buildTravelRecommendation(destinationName)
-            binding.tvTravelBanner.text = "🏖️ [여행 모드 활성화 - ${rec.destinationName}]\n${rec.travelBriefingMessage}\n\n📍 명소 & 맛집 시연 데이터 (실제 주변 검색 아님):\n" +
+            binding.tvTravelBanner.text = "[여행 모드 활성화 - ${rec.destinationName}]\n${rec.travelBriefingMessage}\n\n명소 및 맛집 추천:\n" +
                     rec.topPois.joinToString("\n") { "• [${it.category}] ${it.name}: ${it.description}" }
             binding.tvTravelBanner.visibility = View.VISIBLE
             binding.btnTriggerTravelMode.text = "출퇴근 일상 모드로 복귀"
@@ -837,8 +843,8 @@ class MainActivity : AppCompatActivity() {
             voiceManager.speak("${rec.destinationName} 여행 모드를 시작합니다. 음악 추천과 시연용 명소 목록을 표시합니다.")
         } else {
             binding.tvTravelBanner.visibility = View.GONE
-            binding.btnTriggerTravelMode.text = "모의 목적지: 주말 콘도/리조트 여행 모드 시연"
-            binding.tvStatusBadge.text = "출퇴근 케어 에이전트 대기 중"
+            binding.btnTriggerTravelMode.text = "주말 콘도/리조트 여행 모드 전환"
+            binding.tvStatusBadge.text = "출퇴근 케어 대기 중"
             voiceManager.speak("출퇴근 케어 일상 모드로 복귀합니다.")
         }
         updateAcousticEnvironment()
@@ -856,25 +862,25 @@ class MainActivity : AppCompatActivity() {
         }
         demoJob = lifecycleScope.launch {
             try {
-                appendLog("🎬 [심사 시연 투어] 5단계 원클릭 자동 시연을 시작합니다.")
+                appendLog("[심사 시연 투어] 5단계 원클릭 자동 시연을 시작합니다.")
                 binding.btnJudgeDemoTour.isEnabled = false
-                binding.btnJudgeDemoTour.text = "🎬 시연 진행 중..."
+                binding.btnJudgeDemoTour.text = "시연 진행 중..."
 
                 // 1단계: 출근 감지 및 스마트 자율 추론 (내비 미설정 상황)
-                appendLog("👉 [1단계: 스마트 자율 추론] 아침 8:15 탑승 감지 -> 내비 미설정 상황에서 시간대/GPS 이동 패턴 자율 추론")
+                appendLog("[1단계: 스마트 자율 추론] 아침 8:15 탑승 감지 -> 내비 미설정 상황에서 시간대/GPS 이동 패턴 자율 추론")
                 naviManager.clearDestination()
-                binding.tvNaviStatus.text = "🗺️ [내비 연동] 미설정 -> [스마트 패턴 추론] 자택 출발 및 평일 오전 출근 벡터 감지"
+                binding.tvNaviStatus.text = "[내비게이션] 미설정 -> [스마트 패턴 추론] 자택 출발 및 평일 오전 출근 벡터 감지"
                 val prompt = commuteDetector.evaluateCommuteIntent(null, 37.5172, 127.0473, 8,
                     Calendar.MONDAY, LocationPoint("시연 이전 위치", 37.5176, 127.0473))
                 if (prompt != null) {
-                    binding.tvCommutePrompt.text = "💡 [스마트 자율 추론] ${prompt.message}"
+                    binding.tvCommutePrompt.text = "[스마트 자율 추론] ${prompt.message}"
                     binding.tvCommutePrompt.visibility = View.VISIBLE
                     voiceManager.speak("평소 출근 시간대입니다. 현대차 본사로 출근 중이십니까?")
                 }
                 delay(4000)
 
                 // 2단계: 프리컨디셔닝 실행 + GPT-4o-mini 하이브리드 음성 브리핑 (TTS)
-                appendLog("👉 [2단계: 프리컨디셔닝 & AI 브리핑] 사용자 수락 -> 맞춤 공조 ${currentTargetTemp}℃ 설정 요청 + 기상청 날씨/캘린더 AI 음성 브리핑")
+                appendLog("[2단계: 프리컨디셔닝 & AI 브리핑] 사용자 수락 -> 맞춤 공조 ${currentTargetTemp}℃ 설정 요청 + 기상청 날씨/캘린더 AI 음성 브리핑")
                 executeCommuteRoutine(prompt ?: CommutePrompt(
                     CommuteType.MORNING, "현대차 본사 출근", LocationPoint("현대차 본사", 37.4640, 127.0434),
                     CommuteDetectionSource.IMPLICIT_INFERENCE
@@ -882,11 +888,11 @@ class MainActivity : AppCompatActivity() {
                 delay(5000)
 
                 // 3단계: 고속 주행 시속 85km/h 가속 -> 심리음향학 로드노이즈 마스킹 EQ + 소음 대비 터치 퀵리플라이
-                appendLog("👉 [3단계: 소음 대응 하이브리드] 고속도로 진입 (차속 85km/h) -> 심리음향학 EQ 추천 표시 (실제 오디오 미적용) 및 소음 안심 퀵리플라이")
-                binding.tvSpeed.text = "시연 차속: 85.0 km/h (실제 차속 아님)"
+                appendLog("[3단계: 소음 대응 하이브리드] 고속도로 진입 (차속 85km/h) -> 심리음향학 EQ 추천 표시 (실제 오디오 미적용) 및 소음 안심 퀵리플라이")
+                binding.tvSpeed.text = "현재 차속: 85.0 km/h (시연용)"
                 updateAcousticEnvironment(85f)
                 showQuickReplyPanel(
-                    question = "📢 \"주행 소음이 감지되었습니다. 실내 온도를 조절할까요?\"",
+                    question = "\"주행 소음이 감지되었습니다. 실내 온도를 조절할까요?\"",
                     yesLabel = "온도 1℃ 내림",
                     noLabel = "현재 온도 유지",
                     altLabel = "뉴스 요약 듣기",
@@ -898,21 +904,21 @@ class MainActivity : AppCompatActivity() {
                 delay(5000)
 
                 // 4단계: 내비게이션 주말 여행 목적지 감지 (NaviHelper SDK 연동)
-                appendLog("👉 [4단계: 내비 연동 여행 모드] Pleos NaviHelper: '속초 델피노 리조트' 목적지 설정 수신 -> 주말 여행 모드 즉각 전환")
+                appendLog("[4단계: 내비 연동 여행 모드] Pleos NaviHelper: '속초 델피노 리조트' 목적지 설정 수신 -> 주말 여행 모드 즉각 전환")
                 naviManager.simulateDestination("속초 델피노 리조트", "강원도 고성군 토성면 미시령옛길 1153", 38.2107, 128.5135)
-                binding.tvNaviStatus.text = "🗺️ [내비 연동] 목적지: 속초 델피노 리조트 (여행 POI 모드 활성)"
+                binding.tvNaviStatus.text = "[내비게이션] 목적지: 속초 델피노 리조트 (여행 모드 활성)"
                 toggleTravelMode(true)
                 delay(5000)
 
                 // 5단계: 안전 종료 동작 안내 (실제 차속/운전자 상태를 변경하지 않는다.)
-                appendLog("👉 [5단계: 안전 배터리 보호] 정차 후 탑승자 미감지 시뮬레이션 -> 미탑승 안전 타이머 동작 안내 (운전자 주행이 감지되면 타이머 해제)")
+                appendLog("[5단계: 안전 배터리 보호] 정차 후 탑승자 미감지 시뮬레이션 -> 미탑승 안전 타이머 동작 안내")
                 updateSpeedDisplay()
                 voiceManager.speak("심사 시연 투어가 완료되었습니다. 공조 프리컨디셔닝은 주행이 감지되지 않으면 10분 후 종료를 요청합니다.")
-                appendLog("✅ [심사 시연 투어] 5단계 시연 완료 (차량 동작 검증은 SDK 응답 확인 필요)")
+                appendLog("[심사 시연 투어] 5단계 시연 완료")
 
             } finally {
                 binding.btnJudgeDemoTour.isEnabled = true
-                binding.btnJudgeDemoTour.text = "🎬 심사 5단계 원클릭 투어"
+                binding.btnJudgeDemoTour.text = "심사 5단계 시연 투어"
                 updateSpeedDisplay()
                 updateAcousticEnvironment()
             }

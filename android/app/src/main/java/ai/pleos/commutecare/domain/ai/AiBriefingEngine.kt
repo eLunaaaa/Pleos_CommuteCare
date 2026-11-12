@@ -87,7 +87,7 @@ object AiBriefingEngine {
         }
 
         try {
-            val systemPrompt = "너는 현대자동차 디 올 뉴 그랜저(GN7) 및 제네시스 Pleos IVI 시스템의 탑승자 전용 AI 브리핑 에이전트야. 운전자가 주행 전 편안하게 들을 수 있도록 존댓말과 정중하고 부드러운 톤(TTS용 구어체)으로 3문장 이내의 브리핑 멘트를 작성해."
+            val systemPrompt = "너는 현대자동차 디 올 뉴 그랜저(GN7) 및 제네시스 Pleos IVI 시스템의 탑승자 전용 AI 브리핑 에이전트야. 반드시 '민석님, 안녕하세요!'로 인사를 시작하고, 운전자가 주행 전 편안하게 들을 수 있도록 존댓말과 정중하고 부드러운 톤(TTS용 구어체)으로 3문장 이내의 브리핑 멘트를 작성해. 이모티콘은 음성 합성에 방해되므로 일체 사용하지 마."
 
             val userPrompt = buildString {
                 append("상황: ${if (commuteType == CommuteType.MORNING) "출근길" else "퇴근길"}\n")
@@ -158,7 +158,7 @@ object AiBriefingEngine {
 
         return buildString {
             if (commuteType == CommuteType.MORNING) {
-                append("좋은 아침입니다. 오늘 날씨는 ${weather?.description ?: "정보를 확인할 수 없습니다"}. ")
+                append("민석님, 안녕하세요! 오늘 날씨는 ${weather?.description ?: "정보를 확인할 수 없습니다"}. ")
                 if (nextEvent != null) {
                     append("첫 번째 일정은 ${nextEvent.startTime}에 시작되는 '${nextEvent.title}'입니다. ")
                 }
@@ -166,7 +166,7 @@ object AiBriefingEngine {
                     append("출근 전 '${importantEmail.sender}'님으로부터 '${importantEmail.subject}' 관련 중요 메일이 도착했습니다.")
                 }
             } else {
-                append("오늘 하루도 고생 많으셨습니다. ")
+                append("민석님, 안녕하세요! 오늘 하루도 수고 많으셨습니다. ")
                 if (weather != null && weather.precipitationType > 0) {
                     append("현재 비가 내리고 있으니 안전 거리를 유지하시고 편안한 귀가길 되세요.")
                 } else {
