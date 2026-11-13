@@ -150,8 +150,8 @@ class MainActivity : AppCompatActivity() {
             context = this,
             onDestinationUpdated = { analysis ->
                 runOnUiThread {
-                    binding.tvNaviStatus.text = analysis?.let { "🗺️ [내비 연동] ${it.destinationName} (${it.address})" }
-                        ?: "🗺️ [내비 연동] 목적지 미설정"
+                    binding.tvNaviStatus.text = analysis?.let { "목적지: ${it.destinationName}" }
+                        ?: "목적지: 미설정 (자율 추론)"
                     appendLog("내비 목적지 갱신: ${analysis?.destinationName ?: "미설정"}")
                     checkSmartCommuteIntent()
                 }
@@ -178,12 +178,11 @@ class MainActivity : AppCompatActivity() {
         voiceManager.onSpeechStateChangeListener = { isSpeaking, speakingText ->
             runOnUiThread {
                 if (isSpeaking) {
-                    val preview = if (speakingText != null) " - \"${speakingText.take(24)}...\"" else ""
-                    binding.tvVoiceStatus.text = "[음성 안내 중] Pleos TTS 출력$preview"
+                    binding.tvVoiceStatus.text = "음성 안내 중"
                     binding.btnVoiceStop.visibility = View.VISIBLE
                 } else {
                     if (!voiceManager.isListening) {
-                        binding.tvVoiceStatus.text = "Pleos 음성 비서 준비 완료 (온디바이스)"
+                        binding.tvVoiceStatus.text = "음성 비서 대기 중"
                         binding.btnVoiceStop.visibility = View.GONE
                     }
                 }
@@ -194,14 +193,14 @@ class MainActivity : AppCompatActivity() {
         voiceManager.onListeningStateChangeListener = { isListening, partialText ->
             runOnUiThread {
                 if (isListening) {
-                    binding.tvVoiceStatus.text = "[음성 청취 중] ${partialText ?: "말씀해 주세요..."}"
-                    binding.btnVoiceMic.text = "청취 중... (터치 시 중단)"
+                    binding.tvVoiceStatus.text = partialText ?: "듣는 중..."
+                    binding.btnVoiceMic.text = "중지"
                     binding.btnVoiceMic.setBackgroundResource(ai.pleos.commutecare.R.drawable.bg_button_orange)
                 } else {
-                    binding.btnVoiceMic.text = "음성 명령 시작"
+                    binding.btnVoiceMic.text = "음성 명령"
                     binding.btnVoiceMic.setBackgroundResource(ai.pleos.commutecare.R.drawable.bg_button_blue)
                     if (!voiceManager.isSpeaking) {
-                        binding.tvVoiceStatus.text = "Pleos 음성 비서 준비 완료 (온디바이스)"
+                        binding.tvVoiceStatus.text = "음성 비서 대기 중"
                     }
                 }
             }
@@ -275,7 +274,7 @@ class MainActivity : AppCompatActivity() {
             currentLat = lat
             currentLon = lon
 
-            binding.tvLocationGps.text = "GPS: %.4f°N, %.4f°E (FusedLocation)".format(lat, lon)
+            binding.tvLocationGps.text = "%.2f°N, %.2f°E".format(lat, lon)
             checkSmartCommuteIntent()
         }
 
@@ -415,11 +414,11 @@ class MainActivity : AppCompatActivity() {
             val weather = KmaWeatherClient.fetchCurrentWeather(lat, lon)
             if (weather != null) currentWeather = weather
             if (weather != null) {
-                binding.tvWeatherDetails.text = "기상청 초단기실황: ${weather.description} (풍속 ${weather.windSpeedMps}m/s)"
+                binding.tvWeatherDetails.text = "${weather.temperatureCelsius}°C · ${weather.description}"
                 appendLog("기상청 날씨 수신 성공: ${weather.temperatureCelsius}℃, PTY=${weather.precipitationType}")
             } else {
-                binding.tvWeatherDetails.text = currentWeather?.let { "이전 관측값: ${it.description}" }
-                    ?: "날씨 정보를 확인할 수 없습니다."
+                binding.tvWeatherDetails.text = currentWeather?.let { "${it.temperatureCelsius}°C (이전)" }
+                    ?: "날씨 미확인"
                 appendLog("기상청 API 실패: 이전 관측값 또는 날씨 미확인 상태 유지")
             }
             updateAcousticEnvironment()
@@ -464,7 +463,7 @@ class MainActivity : AppCompatActivity() {
         pendingCommutePrompt = prompt
         val pattern = patternEngine.predictPattern(day, time, prompt.commuteType == CommuteType.MORNING)
         if (!hasManualTemperature) currentTargetTemp = pattern.personalizedTargetTemp.coerceIn(16f, 30f)
-        binding.tvTargetTempDisplay.text = "목표 공조: ${currentTargetTemp}℃"
+        binding.tvTargetTempDisplay.text = "${currentTargetTemp}°C"
         binding.tvCommutePrompt.text = prompt.message
         binding.tvCommutePrompt.visibility = View.VISIBLE
         binding.btnConfirmCommute.visibility = View.VISIBLE
@@ -497,8 +496,9 @@ class MainActivity : AppCompatActivity() {
         val visibility = if (restricted) View.GONE else View.VISIBLE
         binding.layoutDetailedDashboard.visibility = visibility
         binding.layoutDiagnostics.visibility = visibility
-        listOf(binding.btnNaviSimWork, binding.btnNaviSimClear, binding.btnNaviSimTravel, binding.btnJudgeDemoTour)
+        listOf(binding.btnNaviSimWork, binding.btnNaviSimTravel, binding.btnJudgeDemoTour)
             .forEach { it.visibility = visibility }
+        binding.btnNaviSimClear.visibility = View.GONE
         binding.tvDrivingStatus.visibility = if (restricted) View.VISIBLE else View.GONE
         binding.layoutQuickReplyCard.visibility = if (!restricted && pendingQuickReplyYes != null) View.VISIBLE else View.GONE
         if (restricted) demoJob?.cancel()
@@ -510,8 +510,8 @@ class MainActivity : AppCompatActivity() {
      * @throws 없음
      */
     private fun updateSpeedDisplay() {
-        binding.tvSpeed.text = "현재 차속: %.1f km/h".format(currentSpeedKmh) +
-            (currentSpeedLimit?.let { " (도로 제한: ${it}km/h)" } ?: "")
+        binding.tvSpeed.text = "%.0f km/h".format(currentSpeedKmh) +
+            (currentSpeedLimit?.let { " / 제한 ${it}" } ?: "")
     }
 
     /**
@@ -613,12 +613,12 @@ class MainActivity : AppCompatActivity() {
 
         val track = musicManager.getPresetTrack(if (isTravelModeActive) "TRAVEL" else if (currentCommuteMode == CommuteType.MORNING) "MORNING" else "EVENING")
 
-        binding.tvAudioInfo.text = "${track.title} - ${track.artist} (${track.contextTag})\n[제안 EQ: Bass ${bassSign}%.1fdB, Mid +%.1fdB, Treble ${trebleSign}%.1fdB]".format(
+        binding.tvAudioInfo.text = "${track.title} · ${track.artist} (${track.contextTag})"
+        binding.tvAcousticBasis.text = "제안 EQ: Bass ${bassSign}%.1fdB / Mid +%.1fdB / Treble ${trebleSign}%.1fdB".format(
             preset.bassGainDb,
             preset.midGainDb,
             preset.trebleGainDb
         )
-        binding.tvAcousticBasis.text = "음향학적 근거: ${preset.scientificBasis}"
     }
 
     /**
@@ -665,8 +665,8 @@ class MainActivity : AppCompatActivity() {
         val preset = AmbientLightingEngine.determineLightingPreset(currentCommuteMode, condition)
         currentLightingPreset = preset
 
-        binding.tvLightingInfo.text = "무드램프: ${preset.colorNameKo} (${preset.hexString}) [${preset.presetName}]"
-        binding.tvLightingBasis.text = "조명공학 근거: ${preset.scientificBasis}\n[논문: ${preset.referencePaper}]"
+        binding.tvLightingInfo.text = "${preset.colorNameKo} (${preset.hexString})"
+        binding.tvLightingBasis.text = preset.presetName
 
         vehicleManager.setAmbientMoodLight(preset.colorHex) { success ->
             if (success) appendLog("GN7 무드램프 색상 자동 동기화 완료: ${preset.colorNameKo}")
@@ -797,7 +797,7 @@ class MainActivity : AppCompatActivity() {
         hasManualTemperature = true
         binding.btnTempUp.isEnabled = false
         binding.btnTempDown.isEnabled = false
-        binding.tvTargetTempDisplay.text = "목표 공조: ${requested}℃ (적용 요청 중)"
+        binding.tvTargetTempDisplay.text = "${requested}°C ..."
         var completed = false
         fun finish(success: Boolean) {
             if (completed || request != temperatureRequest || isDestroyed) return
@@ -808,11 +808,11 @@ class MainActivity : AppCompatActivity() {
             if (success) {
                 currentTargetTemp = requested
                 patternEngine.updateTemperaturePreference(requested)
-                binding.tvTargetTempDisplay.text = "목표 공조: ${currentTargetTemp}℃ (차량 적용 완료)"
+                binding.tvTargetTempDisplay.text = "${currentTargetTemp}°C"
                 appendLog("수동 공조 온도 적용: ${currentTargetTemp}℃")
                 voiceManager.speak("목표 온도를 ${currentTargetTemp}도로 설정했습니다.")
             } else {
-                binding.tvTargetTempDisplay.text = "목표 공조: ${currentTargetTemp}℃ (변경 실패 또는 응답 시간 초과)"
+                binding.tvTargetTempDisplay.text = "${currentTargetTemp}°C"
                 voiceManager.speak("목표 온도 변경을 확인하지 못했습니다. 차량 상태를 확인해 주세요.")
             }
         }
@@ -843,8 +843,8 @@ class MainActivity : AppCompatActivity() {
             voiceManager.speak("${rec.destinationName} 여행 모드를 시작합니다. 음악 추천과 시연용 명소 목록을 표시합니다.")
         } else {
             binding.tvTravelBanner.visibility = View.GONE
-            binding.btnTriggerTravelMode.text = "주말 콘도/리조트 여행 모드 전환"
-            binding.tvStatusBadge.text = "출퇴근 케어 대기 중"
+            binding.btnTriggerTravelMode.text = "여행 모드 전환"
+            binding.tvStatusBadge.text = "대기 중"
             voiceManager.speak("출퇴근 케어 일상 모드로 복귀합니다.")
         }
         updateAcousticEnvironment()
@@ -889,7 +889,7 @@ class MainActivity : AppCompatActivity() {
 
                 // 3단계: 고속 주행 시속 85km/h 가속 -> 심리음향학 로드노이즈 마스킹 EQ + 소음 대비 터치 퀵리플라이
                 appendLog("[3단계: 소음 대응 하이브리드] 고속도로 진입 (차속 85km/h) -> 심리음향학 EQ 추천 표시 (실제 오디오 미적용) 및 소음 안심 퀵리플라이")
-                binding.tvSpeed.text = "현재 차속: 85.0 km/h (시연용)"
+                binding.tvSpeed.text = "85 km/h (시연)"
                 updateAcousticEnvironment(85f)
                 showQuickReplyPanel(
                     question = "\"주행 소음이 감지되었습니다. 실내 온도를 조절할까요?\"",
@@ -918,7 +918,7 @@ class MainActivity : AppCompatActivity() {
 
             } finally {
                 binding.btnJudgeDemoTour.isEnabled = true
-                binding.btnJudgeDemoTour.text = "심사 5단계 시연 투어"
+                binding.btnJudgeDemoTour.text = "시연 투어"
                 updateSpeedDisplay()
                 updateAcousticEnvironment()
             }
