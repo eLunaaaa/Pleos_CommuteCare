@@ -1,606 +1,607 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!--
-    @file activity_main.xml
-    @brief Pleos CommuteCare 운전자 시인성 극대화 대형 타이포그래피 4대 위젯 대시보드 UI
--->
-<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="@drawable/bg_screen_blue_white"
-    android:fillViewport="true">
+    android:orientation="vertical"
+    android:paddingStart="96dp"
+    android:paddingTop="18dp"
+    android:paddingEnd="28dp"
+    android:paddingBottom="18dp">
 
+    <!-- 상단 Apple 글래스모픽 상태 바 -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:orientation="vertical"
-        android:paddingStart="30dp"
-        android:paddingTop="18dp"
-        android:paddingEnd="30dp"
-        android:paddingBottom="24dp">
+        android:layout_marginBottom="14dp"
+        android:gravity="center_vertical"
+        android:orientation="horizontal">
 
-        <!-- ========================================== -->
-        <!-- 1. Top Cluster Bar (Driver Glanceable)     -->
-        <!-- ========================================== -->
         <LinearLayout
-            android:layout_width="match_parent"
+            android:layout_width="0dp"
             android:layout_height="wrap_content"
+            android:layout_weight="1"
             android:gravity="center_vertical"
-            android:orientation="horizontal"
-            android:paddingBottom="14dp">
+            android:orientation="horizontal">
 
             <TextView
-                android:id="@+id/tvMainTitle"
-                android:layout_width="0dp"
+                android:id="@+id/tvGreetingTitle"
+                android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:text="Pleos CommuteCare"
+                android:text="민석님 안녕하세요"
                 android:textColor="#0F172A"
-                android:textSize="28sp"
+                android:textSize="32sp"
                 android:textStyle="bold" />
 
             <TextView
-                android:id="@+id/tvStatusBadge"
+                android:id="@+id/tvDrivingStatus"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:background="@drawable/bg_badge_blue"
-                android:paddingStart="20dp"
-                android:paddingTop="8dp"
-                android:paddingEnd="20dp"
-                android:paddingBottom="8dp"
-                android:text="대기 중"
+                android:layout_marginStart="14dp"
+                android:background="@drawable/bg_glass_apple_pill"
+                android:paddingStart="14dp"
+                android:paddingTop="6dp"
+                android:paddingEnd="14dp"
+                android:paddingBottom="6dp"
+                android:text="정차 중"
                 android:textColor="#1D4ED8"
                 android:textSize="17sp"
-                android:textStyle="bold" />
-
-            <TextView
-                android:id="@+id/tvLocationGps"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginStart="10dp"
-                android:background="@drawable/bg_card_dark"
-                android:paddingStart="16dp"
-                android:paddingTop="8dp"
-                android:paddingEnd="16dp"
-                android:paddingBottom="8dp"
-                android:text="GPS 연결"
-                android:textColor="#2563EB"
-                android:textSize="15sp"
-                android:textStyle="bold" />
-
-            <TextView
-                android:id="@+id/tvSpeed"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginStart="10dp"
-                android:background="@drawable/bg_card_dark"
-                android:paddingStart="20dp"
-                android:paddingTop="8dp"
-                android:paddingEnd="20dp"
-                android:paddingBottom="8dp"
-                android:text="0 km/h"
-                android:textColor="#0F172A"
-                android:textSize="20sp"
-                android:textStyle="bold" />
-
-            <androidx.appcompat.widget.AppCompatButton
-                android:id="@+id/btnJudgeDemoTour"
-                android:layout_width="wrap_content"
-                android:layout_height="44dp"
-                android:layout_marginStart="12dp"
-                android:background="@drawable/bg_button_blue"
-                android:paddingStart="22dp"
-                android:paddingEnd="22dp"
-                android:text="시연 투어"
-                android:textColor="#FFFFFF"
-                android:textSize="17sp"
-                android:textStyle="bold" />
-        </LinearLayout>
-
-        <!-- ========================================== -->
-        <!-- 2. Hero Greeting & Voice Command Strip     -->
-        <!-- ========================================== -->
-        <LinearLayout
-            android:id="@+id/layoutGreetingCard"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginBottom="16dp"
-            android:background="@drawable/bg_card_briefing"
-            android:gravity="center_vertical"
-            android:orientation="horizontal"
-            android:paddingStart="28dp"
-            android:paddingTop="20dp"
-            android:paddingEnd="28dp"
-            android:paddingBottom="20dp">
-
-            <LinearLayout
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:orientation="vertical">
-
-                <TextView
-                    android:id="@+id/tvGreetingTitle"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="민석님, 안녕하세요"
-                    android:textColor="#0F172A"
-                    android:textSize="32sp"
-                    android:textStyle="bold" />
-
-                <TextView
-                    android:id="@+id/tvVoiceStatus"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:paddingTop="4dp"
-                    android:text="음성 비서 대기 중"
-                    android:textColor="#2563EB"
-                    android:textSize="20sp"
-                    android:textStyle="bold" />
-            </LinearLayout>
-
-            <androidx.appcompat.widget.AppCompatButton
-                android:id="@+id/btnVoiceMic"
-                android:layout_width="wrap_content"
-                android:layout_height="54dp"
-                android:background="@drawable/bg_button_blue"
-                android:paddingStart="28dp"
-                android:paddingEnd="28dp"
-                android:text="음성 명령"
-                android:textColor="#FFFFFF"
-                android:textSize="19sp"
-                android:textStyle="bold" />
-
-            <androidx.appcompat.widget.AppCompatButton
-                android:id="@+id/btnVoiceStop"
-                android:layout_width="wrap_content"
-                android:layout_height="54dp"
-                android:layout_marginStart="10dp"
-                android:background="@drawable/bg_button_dark"
-                android:paddingStart="22dp"
-                android:paddingEnd="22dp"
-                android:text="중지"
-                android:textColor="#1E40AF"
-                android:textSize="18sp"
-                android:textStyle="bold"
-                android:visibility="gone" />
-
-            <androidx.appcompat.widget.AppCompatButton
-                android:id="@+id/btnVoiceReplay"
-                android:layout_width="wrap_content"
-                android:layout_height="54dp"
-                android:layout_marginStart="10dp"
-                android:background="@drawable/bg_button_dark"
-                android:paddingStart="22dp"
-                android:paddingEnd="22dp"
-                android:text="다시 듣기"
-                android:textColor="#1E40AF"
-                android:textSize="18sp"
                 android:textStyle="bold"
                 android:visibility="gone" />
         </LinearLayout>
 
-        <!-- ========================================== -->
-        <!-- 3. Driving Restriction / Quick Reply (Max 3) -->
-        <!-- ========================================== -->
         <TextView
-            android:id="@+id/tvDrivingStatus"
-            android:layout_width="match_parent"
+            android:id="@+id/tvWeatherDetails"
+            android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:background="@drawable/bg_card_dark"
-            android:padding="28dp"
-            android:text="주행 중에는 음성 명령만 지원합니다."
-            android:textColor="#0F172A"
-            android:textSize="28sp"
+            android:layout_marginEnd="12dp"
+            android:background="@drawable/bg_glass_apple_pill"
+            android:paddingStart="16dp"
+            android:paddingTop="8dp"
+            android:paddingEnd="16dp"
+            android:paddingBottom="8dp"
+            android:text="18°C 맑음"
+            android:textColor="#1E3A8A"
+            android:textSize="21sp"
             android:textStyle="bold" />
 
-        <LinearLayout
-            android:id="@+id/layoutQuickReplyCard"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginBottom="16dp"
-            android:background="@drawable/bg_card_quick_reply"
-            android:orientation="vertical"
-            android:padding="24dp"
-            android:visibility="gone">
+        <androidx.appcompat.widget.AppCompatButton
+            android:id="@+id/btnRefreshAiBriefing"
+            android:layout_width="wrap_content"
+            android:layout_height="52dp"
+            android:layout_marginEnd="10dp"
+            android:background="@drawable/bg_glass_apple_pill"
+            android:drawableStart="@drawable/ic_tesla_replay"
+            android:drawablePadding="8dp"
+            android:paddingStart="16dp"
+            android:paddingEnd="18dp"
+            android:text="브리핑"
+            android:textAllCaps="false"
+            android:textColor="#1E3A8A"
+            android:textSize="18sp"
+            android:textStyle="bold" />
 
-            <TextView
-                android:id="@+id/tvQuickReplyQuestion"
+        <androidx.appcompat.widget.AppCompatButton
+            android:id="@+id/btnJudgeDemoTour"
+            android:layout_width="wrap_content"
+            android:layout_height="52dp"
+            android:background="@drawable/bg_glass_apple_blue_pill"
+            android:drawableStart="@drawable/ic_tesla_play"
+            android:drawablePadding="8dp"
+            android:paddingStart="18dp"
+            android:paddingEnd="20dp"
+            android:text="시연 투어"
+            android:textAllCaps="false"
+            android:textColor="#FFFFFF"
+            android:textSize="18sp"
+            android:textStyle="bold" />
+    </LinearLayout>
+
+    <!-- 메인 2열 테슬라 투명 글래스 대시보드 -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:baselineAligned="false"
+        android:orientation="horizontal">
+
+        <!-- 좌측 44%: 투명 차량 3D/탑뷰 애니메이션 스테이지 -->
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_marginEnd="16dp"
+            android:layout_weight="44"
+            android:background="@drawable/bg_glass_apple_pane"
+            android:orientation="vertical"
+            android:padding="18dp">
+
+            <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:paddingBottom="16dp"
-                android:text="현대자동차 본사로 출근 중이십니까?"
-                android:textColor="#0F172A"
-                android:textSize="24sp"
-                android:textStyle="bold" />
+                android:gravity="center_vertical"
+                android:orientation="horizontal">
 
+                <TextView
+                    android:id="@+id/tvSpeed"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginEnd="12dp"
+                    android:text="0 km/h"
+                    android:textColor="#2563EB"
+                    android:textSize="28sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:id="@+id/tvNaviStatus"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:ellipsize="end"
+                    android:gravity="end"
+                    android:maxLines="1"
+                    android:text="자동 추론 대기"
+                    android:textColor="#1E3A8A"
+                    android:textSize="20sp"
+                    android:textStyle="bold" />
+            </LinearLayout>
+
+            <ai.pleos.commutecare.presentation.TeslaVehicleCanvasView
+                android:id="@+id/teslaVehicleView"
+                android:layout_width="match_parent"
+                android:layout_height="0dp"
+                android:layout_marginTop="6dp"
+                android:layout_marginBottom="8dp"
+                android:layout_weight="1" />
+
+            <!-- 하단 아이콘 중심 3버튼 목적지 도크 -->
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:orientation="horizontal">
 
                 <androidx.appcompat.widget.AppCompatButton
-                    android:id="@+id/btnQuickReplyYes"
+                    android:id="@+id/btnNaviSimWork"
                     android:layout_width="0dp"
-                    android:layout_height="58dp"
-                    android:layout_marginEnd="12dp"
+                    android:layout_height="54dp"
+                    android:layout_marginEnd="8dp"
                     android:layout_weight="1"
-                    android:background="@drawable/bg_button_blue"
-                    android:text="맞춤 출근"
+                    android:background="@drawable/bg_glass_apple_blue_pill"
+                    android:drawableStart="@drawable/ic_tesla_nav"
+                    android:drawableTint="#FFFFFF"
+                    android:drawablePadding="6dp"
+                    android:paddingStart="16dp"
+                    android:paddingEnd="14dp"
+                    android:text="출근"
+                    android:textAllCaps="false"
                     android:textColor="#FFFFFF"
-                    android:textSize="20sp"
+                    android:textSize="18sp"
                     android:textStyle="bold" />
 
                 <androidx.appcompat.widget.AppCompatButton
-                    android:id="@+id/btnQuickReplyNo"
+                    android:id="@+id/btnNaviSimTravel"
                     android:layout_width="0dp"
-                    android:layout_height="58dp"
-                    android:layout_marginEnd="12dp"
+                    android:layout_height="54dp"
+                    android:layout_marginEnd="8dp"
                     android:layout_weight="1"
-                    android:background="@drawable/bg_button_dark"
-                    android:text="일반 주행"
-                    android:textColor="#1E40AF"
-                    android:textSize="20sp"
+                    android:background="@drawable/bg_glass_apple_pill"
+                    android:drawableStart="@drawable/ic_tesla_travel"
+                    android:drawablePadding="6dp"
+                    android:paddingStart="16dp"
+                    android:paddingEnd="14dp"
+                    android:text="여행"
+                    android:textAllCaps="false"
+                    android:textColor="#1E3A8A"
+                    android:textSize="18sp"
                     android:textStyle="bold" />
 
                 <androidx.appcompat.widget.AppCompatButton
-                    android:id="@+id/btnQuickReplyAlt"
+                    android:id="@+id/btnNaviSimClear"
                     android:layout_width="0dp"
-                    android:layout_height="58dp"
+                    android:layout_height="54dp"
                     android:layout_weight="1"
-                    android:background="@drawable/bg_button_dark"
-                    android:text="여행 모드"
-                    android:textColor="#1E40AF"
-                    android:textSize="20sp"
+                    android:background="@drawable/bg_glass_apple_pill"
+                    android:drawableStart="@drawable/ic_tesla_replay"
+                    android:drawablePadding="6dp"
+                    android:paddingStart="14dp"
+                    android:paddingEnd="12dp"
+                    android:text="해제"
+                    android:textAllCaps="false"
+                    android:textColor="#1E3A8A"
+                    android:textSize="18sp"
                     android:textStyle="bold" />
             </LinearLayout>
         </LinearLayout>
 
-        <!-- ========================================== -->
-        <!-- 4. 2x2 Big-Typography Automotive Dashboard -->
-        <!-- ========================================== -->
+        <!-- 우측 56%: 아이콘·숫자 중심 투명 글래스 제어 패널 -->
         <LinearLayout
             android:id="@+id/layoutDetailedDashboard"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="56"
             android:orientation="vertical">
 
-            <!-- ROW 1: AI Briefing Tile | Climate Control Tile -->
+            <!-- 카드 1: 공조 직접 제어 -->
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginBottom="16dp"
-                android:baselineAligned="false"
-                android:orientation="horizontal">
+                android:layout_marginBottom="14dp"
+                android:background="@drawable/bg_glass_apple_pane"
+                android:gravity="center_vertical"
+                android:orientation="horizontal"
+                android:paddingStart="20dp"
+                android:paddingTop="16dp"
+                android:paddingEnd="20dp"
+                android:paddingBottom="16dp">
 
-                <!-- TILE 1: AI Briefing & Weather -->
-                <LinearLayout
-                    android:id="@+id/cardBriefingTile"
+                <androidx.appcompat.widget.AppCompatButton
+                    android:id="@+id/btnTempDown"
+                    android:layout_width="76dp"
+                    android:layout_height="68dp"
+                    android:background="@drawable/bg_glass_apple_pill"
+                    android:text="-"
+                    android:textColor="#1E3A8A"
+                    android:textSize="36sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:id="@+id/tvTargetTempDisplay"
+                    android:layout_width="170dp"
+                    android:layout_height="wrap_content"
+                    android:gravity="center"
+                    android:text="22.5°C"
+                    android:textColor="#0F172A"
+                    android:textSize="48sp"
+                    android:textStyle="bold" />
+
+                <androidx.appcompat.widget.AppCompatButton
+                    android:id="@+id/btnTempUp"
+                    android:layout_width="76dp"
+                    android:layout_height="68dp"
+                    android:background="@drawable/bg_glass_apple_pill"
+                    android:text="+"
+                    android:textColor="#1E3A8A"
+                    android:textSize="36sp"
+                    android:textStyle="bold" />
+
+                <View
                     android:layout_width="0dp"
-                    android:layout_height="match_parent"
-                    android:layout_marginEnd="10dp"
+                    android:layout_height="1dp"
+                    android:layout_weight="1" />
+
+                <androidx.appcompat.widget.AppCompatButton
+                    android:id="@+id/btnPrecondition"
+                    android:layout_width="wrap_content"
+                    android:layout_height="64dp"
+                    android:background="@drawable/bg_glass_apple_blue_pill"
+                    android:drawableStart="@drawable/ic_tesla_fan"
+                    android:drawablePadding="10dp"
+                    android:paddingStart="20dp"
+                    android:paddingEnd="22dp"
+                    android:text="공조"
+                    android:textAllCaps="false"
+                    android:textColor="#FFFFFF"
+                    android:textSize="22sp"
+                    android:textStyle="bold" />
+            </LinearLayout>
+
+            <!-- 카드 2: AI 브리핑 & 음성 -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="0dp"
+                android:layout_marginBottom="14dp"
+                android:layout_weight="1"
+                android:background="@drawable/bg_glass_apple_pane"
+                android:orientation="vertical"
+                android:padding="20dp">
+
+                <TextView
+                    android:id="@+id/tvAiBriefing"
+                    android:layout_width="match_parent"
+                    android:layout_height="0dp"
+                    android:layout_marginBottom="10dp"
                     android:layout_weight="1"
-                    android:background="@drawable/bg_card_dark"
-                    android:clickable="true"
-                    android:focusable="true"
+                    android:ellipsize="end"
+                    android:gravity="center_vertical"
+                    android:lineSpacingExtra="4dp"
+                    android:maxLines="4"
+                    android:text="실내 공조 및 주행 환경이 준비되었습니다."
+                    android:textColor="#0F172A"
+                    android:textSize="22sp" />
+
+                <!-- 상황별 퀵 리플라이 (3버튼 제한) -->
+                <LinearLayout
+                    android:id="@+id/layoutQuickReplyCard"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginBottom="10dp"
+                    android:background="@drawable/bg_glass_apple_pill"
                     android:orientation="vertical"
-                    android:padding="26dp">
+                    android:padding="12dp"
+                    android:visibility="gone">
+
+                    <TextView
+                        android:id="@+id/tvQuickReplyQuestion"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginBottom="8dp"
+                        android:text="맞춤 케어를 시작할까요?"
+                        android:textColor="#0F172A"
+                        android:textSize="19sp"
+                        android:textStyle="bold" />
 
                     <LinearLayout
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:gravity="center_vertical"
                         android:orientation="horizontal">
 
-                        <TextView
+                        <androidx.appcompat.widget.AppCompatButton
+                            android:id="@+id/btnQuickReplyYes"
                             android:layout_width="0dp"
-                            android:layout_height="wrap_content"
+                            android:layout_height="46dp"
+                            android:layout_marginEnd="8dp"
                             android:layout_weight="1"
-                            android:text="AI 브리핑"
-                            android:textColor="#1D4ED8"
-                            android:textSize="21sp"
+                            android:background="@drawable/bg_glass_apple_blue_pill"
+                            android:text="확인"
+                            android:textAllCaps="false"
+                            android:textColor="#FFFFFF"
+                            android:textSize="17sp"
                             android:textStyle="bold" />
 
-                        <TextView
-                            android:id="@+id/tvWeatherDetails"
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:text="날씨 확인 중"
-                            android:textColor="#2563EB"
-                            android:textSize="23sp"
+                        <androidx.appcompat.widget.AppCompatButton
+                            android:id="@+id/btnQuickReplyAlt"
+                            android:layout_width="0dp"
+                            android:layout_height="46dp"
+                            android:layout_marginEnd="8dp"
+                            android:layout_weight="1"
+                            android:background="@drawable/bg_glass_apple_pill"
+                            android:text="요약"
+                            android:textAllCaps="false"
+                            android:textColor="#1E3A8A"
+                            android:textSize="17sp"
+                            android:textStyle="bold"
+                            android:visibility="gone" />
+
+                        <androidx.appcompat.widget.AppCompatButton
+                            android:id="@+id/btnQuickReplyNo"
+                            android:layout_width="0dp"
+                            android:layout_height="46dp"
+                            android:layout_weight="1"
+                            android:background="@drawable/bg_glass_apple_pill"
+                            android:text="닫기"
+                            android:textAllCaps="false"
+                            android:textColor="#1E3A8A"
+                            android:textSize="17sp"
                             android:textStyle="bold" />
                     </LinearLayout>
-
-                    <TextView
-                        android:id="@+id/tvAiBriefing"
-                        android:layout_width="match_parent"
-                        android:layout_height="0dp"
-                        android:layout_weight="1"
-                        android:ellipsize="end"
-                        android:lineSpacingExtra="6dp"
-                        android:maxLines="3"
-                        android:paddingTop="14dp"
-                        android:paddingBottom="14dp"
-                        android:text="브리핑 준비 중..."
-                        android:textColor="#0F172A"
-                        android:textSize="22sp"
-                        android:textStyle="bold" />
-
-                    <TextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="터치하여 전체 브리핑 · 뉴스 보기"
-                        android:textColor="#64748B"
-                        android:textSize="16sp" />
                 </LinearLayout>
 
-                <!-- TILE 2: Hyundai Cockpit Climate Control -->
+                <!-- 음성 아이콘 바 (3버튼) -->
                 <LinearLayout
-                    android:layout_width="0dp"
+                    android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_marginStart="10dp"
-                    android:layout_weight="1"
-                    android:background="@drawable/bg_card_dark"
-                    android:orientation="vertical"
-                    android:padding="26dp">
-
-                    <TextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="실내 공조"
-                        android:textColor="#1D4ED8"
-                        android:textSize="21sp"
-                        android:textStyle="bold" />
-
-                    <LinearLayout
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="14dp"
-                        android:layout_marginBottom="16dp"
-                        android:background="@drawable/bg_temp_box"
-                        android:gravity="center_vertical"
-                        android:orientation="horizontal"
-                        android:padding="12dp">
-
-                        <androidx.appcompat.widget.AppCompatButton
-                            android:id="@+id/btnTempDown"
-                            android:layout_width="80dp"
-                            android:layout_height="68dp"
-                            android:background="@drawable/bg_button_dark"
-                            android:text="-"
-                            android:textColor="#1D4ED8"
-                            android:textSize="36sp"
-                            android:textStyle="bold" />
-
-                        <TextView
-                            android:id="@+id/tvTargetTempDisplay"
-                            android:layout_width="0dp"
-                            android:layout_height="wrap_content"
-                            android:layout_weight="1"
-                            android:gravity="center"
-                            android:text="22.0°C"
-                            android:textColor="#0F172A"
-                            android:textSize="48sp"
-                            android:textStyle="bold" />
-
-                        <androidx.appcompat.widget.AppCompatButton
-                            android:id="@+id/btnTempUp"
-                            android:layout_width="80dp"
-                            android:layout_height="68dp"
-                            android:background="@drawable/bg_button_dark"
-                            android:text="+"
-                            android:textColor="#1D4ED8"
-                            android:textSize="36sp"
-                            android:textStyle="bold" />
-                    </LinearLayout>
+                    android:orientation="horizontal">
 
                     <androidx.appcompat.widget.AppCompatButton
-                        android:id="@+id/btnPrecondition"
-                        android:layout_width="match_parent"
-                        android:layout_height="56dp"
-                        android:background="@drawable/bg_button_blue"
-                        android:text="공조·열선 시작"
+                        android:id="@+id/btnVoiceMic"
+                        android:layout_width="0dp"
+                        android:layout_height="54dp"
+                        android:layout_marginEnd="8dp"
+                        android:layout_weight="1.4"
+                        android:background="@drawable/bg_glass_apple_blue_pill"
+                        android:drawableStart="@drawable/ic_tesla_mic"
+                        android:drawablePadding="8dp"
+                        android:paddingStart="18dp"
+                        android:paddingEnd="16dp"
+                        android:text="음성"
+                        android:textAllCaps="false"
                         android:textColor="#FFFFFF"
-                        android:textSize="20sp"
+                        android:textSize="19sp"
+                        android:textStyle="bold" />
+
+                    <androidx.appcompat.widget.AppCompatButton
+                        android:id="@+id/btnVoiceReplay"
+                        android:layout_width="0dp"
+                        android:layout_height="54dp"
+                        android:layout_marginEnd="8dp"
+                        android:layout_weight="1"
+                        android:background="@drawable/bg_glass_apple_pill"
+                        android:drawableStart="@drawable/ic_tesla_replay"
+                        android:drawablePadding="6dp"
+                        android:paddingStart="14dp"
+                        android:paddingEnd="12dp"
+                        android:text="재생"
+                        android:textAllCaps="false"
+                        android:textColor="#1E3A8A"
+                        android:textSize="18sp"
+                        android:textStyle="bold" />
+
+                    <androidx.appcompat.widget.AppCompatButton
+                        android:id="@+id/btnVoiceStop"
+                        android:layout_width="0dp"
+                        android:layout_height="54dp"
+                        android:layout_weight="1"
+                        android:background="@drawable/bg_glass_apple_pill"
+                        android:drawableStart="@drawable/ic_tesla_stop"
+                        android:drawablePadding="6dp"
+                        android:paddingStart="14dp"
+                        android:paddingEnd="12dp"
+                        android:text="정지"
+                        android:textAllCaps="false"
+                        android:textColor="#1E3A8A"
+                        android:textSize="18sp"
                         android:textStyle="bold" />
                 </LinearLayout>
             </LinearLayout>
 
-            <!-- ROW 2: Media Tile | Navigation & Mode Tile -->
+            <!-- 카드 3: 사운드 & 모드 -->
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:baselineAligned="false"
-                android:orientation="horizontal">
+                android:background="@drawable/bg_glass_apple_pane"
+                android:orientation="vertical"
+                android:padding="20dp">
 
-                <!-- TILE 3: Media & YouTube Music -->
+                <TextView
+                    android:id="@+id/tvAudioInfo"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginBottom="12dp"
+                    android:ellipsize="end"
+                    android:maxLines="1"
+                    android:text="Morning Commute · EQ"
+                    android:textColor="#0F172A"
+                    android:textSize="24sp"
+                    android:textStyle="bold" />
+
                 <LinearLayout
-                    android:id="@+id/cardAudioTile"
-                    android:layout_width="0dp"
-                    android:layout_height="match_parent"
-                    android:layout_marginEnd="10dp"
-                    android:layout_weight="1"
-                    android:background="@drawable/bg_card_dark"
-                    android:clickable="true"
-                    android:focusable="true"
-                    android:orientation="vertical"
-                    android:padding="26dp">
-
-                    <TextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="추천 사운드"
-                        android:textColor="#1D4ED8"
-                        android:textSize="21sp"
-                        android:textStyle="bold" />
-
-                    <TextView
-                        android:id="@+id/tvAudioInfo"
-                        android:layout_width="match_parent"
-                        android:layout_height="0dp"
-                        android:layout_weight="1"
-                        android:paddingTop="14dp"
-                        android:paddingBottom="14dp"
-                        android:text="추천 트랙 불러오는 중"
-                        android:textColor="#0F172A"
-                        android:textSize="26sp"
-                        android:textStyle="bold" />
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal">
 
                     <androidx.appcompat.widget.AppCompatButton
                         android:id="@+id/btnPlayMusic"
-                        android:layout_width="match_parent"
+                        android:layout_width="0dp"
                         android:layout_height="56dp"
-                        android:background="@drawable/bg_button_blue"
-                        android:text="YouTube Music 재생"
-                        android:textColor="#FFFFFF"
-                        android:textSize="20sp"
-                        android:textStyle="bold" />
-                </LinearLayout>
-
-                <!-- TILE 4: Navigation, Mode & Mood Lamp -->
-                <LinearLayout
-                    android:id="@+id/cardModeTile"
-                    android:layout_width="0dp"
-                    android:layout_height="match_parent"
-                    android:layout_marginStart="10dp"
-                    android:layout_weight="1"
-                    android:background="@drawable/bg_card_dark"
-                    android:clickable="true"
-                    android:focusable="true"
-                    android:orientation="vertical"
-                    android:padding="26dp">
-
-                    <TextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="주행 모드 · 무드램프"
-                        android:textColor="#1D4ED8"
-                        android:textSize="21sp"
-                        android:textStyle="bold" />
-
-                    <TextView
-                        android:id="@+id/tvNaviStatus"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:paddingTop="14dp"
-                        android:text="목적지: 미설정 (자율 추론)"
-                        android:textColor="#0F172A"
-                        android:textSize="25sp"
-                        android:textStyle="bold" />
-
-                    <TextView
-                        android:id="@+id/tvLightingInfo"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:paddingTop="8dp"
-                        android:text="무드램프 자동 설정"
-                        android:textColor="#2563EB"
-                        android:textSize="20sp"
-                        android:textStyle="bold" />
-
-                    <TextView
-                        android:id="@+id/tvCommutePrompt"
-                        android:layout_width="match_parent"
-                        android:layout_height="0dp"
+                        android:layout_marginEnd="8dp"
                         android:layout_weight="1"
-                        android:paddingTop="8dp"
-                        android:text="주행 패턴 분석 중"
-                        android:textColor="#475569"
-                        android:textSize="18sp" />
+                        android:background="@drawable/bg_glass_apple_blue_pill"
+                        android:drawableStart="@drawable/ic_tesla_play"
+                        android:drawablePadding="8dp"
+                        android:paddingStart="18dp"
+                        android:paddingEnd="14dp"
+                        android:text="음악"
+                        android:textAllCaps="false"
+                        android:textColor="#FFFFFF"
+                        android:textSize="19sp"
+                        android:textStyle="bold" />
 
-                    <TextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:paddingTop="10dp"
-                        android:text="터치하여 목적지 · 여행 모드 · 로그 보기"
-                        android:textColor="#64748B"
-                        android:textSize="16sp" />
+                    <androidx.appcompat.widget.AppCompatButton
+                        android:id="@+id/btnTriggerTravelMode"
+                        android:layout_width="0dp"
+                        android:layout_height="56dp"
+                        android:layout_marginEnd="8dp"
+                        android:layout_weight="1"
+                        android:background="@drawable/bg_glass_apple_pill"
+                        android:drawableStart="@drawable/ic_tesla_travel"
+                        android:drawablePadding="8dp"
+                        android:paddingStart="16dp"
+                        android:paddingEnd="14dp"
+                        android:text="여행"
+                        android:textAllCaps="false"
+                        android:textColor="#1E3A8A"
+                        android:textSize="19sp"
+                        android:textStyle="bold" />
+
+                    <androidx.appcompat.widget.AppCompatButton
+                        android:id="@+id/btnConfirmCommute"
+                        android:layout_width="0dp"
+                        android:layout_height="56dp"
+                        android:layout_weight="1"
+                        android:background="@drawable/bg_glass_apple_pill"
+                        android:drawableStart="@drawable/ic_tesla_nav"
+                        android:drawablePadding="8dp"
+                        android:paddingStart="16dp"
+                        android:paddingEnd="14dp"
+                        android:text="출근"
+                        android:textAllCaps="false"
+                        android:textColor="#1E3A8A"
+                        android:textSize="19sp"
+                        android:textStyle="bold" />
                 </LinearLayout>
             </LinearLayout>
         </LinearLayout>
-
-        <!-- ========================================== -->
-        <!-- 5. Popup-Backed / Legacy Compatibility     -->
-        <!-- ========================================== -->
-        <LinearLayout
-            android:id="@+id/layoutDiagnostics"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="vertical"
-            android:visibility="gone">
-
-            <androidx.appcompat.widget.AppCompatButton
-                android:id="@+id/btnNaviSimWork"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="출근 설정" />
-
-            <androidx.appcompat.widget.AppCompatButton
-                android:id="@+id/btnNaviSimTravel"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="여행 설정" />
-
-            <androidx.appcompat.widget.AppCompatButton
-                android:id="@+id/btnNaviSimClear"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content" />
-
-            <androidx.appcompat.widget.AppCompatButton
-                android:id="@+id/btnRefreshAiBriefing"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content" />
-
-            <androidx.appcompat.widget.AppCompatButton
-                android:id="@+id/btnConfirmCommute"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content" />
-
-            <TextView
-                android:id="@+id/tvNewsTitle"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content" />
-
-            <TextView
-                android:id="@+id/tvNewsSummary"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content" />
-
-            <androidx.appcompat.widget.AppCompatButton
-                android:id="@+id/btnNewsAccept"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content" />
-
-            <androidx.appcompat.widget.AppCompatButton
-                android:id="@+id/btnNewsDecline"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content" />
-
-            <TextView
-                android:id="@+id/tvLightingBasis"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content" />
-
-            <TextView
-                android:id="@+id/tvAcousticBasis"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content" />
-
-            <androidx.appcompat.widget.AppCompatButton
-                android:id="@+id/btnTriggerTravelMode"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content" />
-
-            <TextView
-                android:id="@+id/tvTravelBanner"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content" />
-
-            <TextView
-                android:id="@+id/tvLogConsole"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="준비 완료" />
-        </LinearLayout>
-
     </LinearLayout>
-</ScrollView>
+
+    <!-- 하위 호환성 및 진단용 숨김 컨테이너 (ViewBinding 무결성 유지) -->
+    <LinearLayout
+        android:id="@+id/layoutDiagnostics"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:visibility="gone">
+
+        <LinearLayout
+            android:id="@+id/cardModeTile"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:orientation="vertical" />
+
+        <LinearLayout
+            android:id="@+id/cardBriefingTile"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:orientation="vertical" />
+
+        <LinearLayout
+            android:id="@+id/cardAudioTile"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:orientation="vertical" />
+
+        <TextView
+            android:id="@+id/tvStatusBadge"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content" />
+
+        <TextView
+            android:id="@+id/tvLocationGps"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content" />
+
+        <TextView
+            android:id="@+id/tvCommutePrompt"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content" />
+
+        <TextView
+            android:id="@+id/tvTravelBanner"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content" />
+
+        <TextView
+            android:id="@+id/tvAcousticBasis"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content" />
+
+        <TextView
+            android:id="@+id/tvLightingInfo"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content" />
+
+        <TextView
+            android:id="@+id/tvLightingBasis"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content" />
+
+        <TextView
+            android:id="@+id/tvNewsTitle"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content" />
+
+        <TextView
+            android:id="@+id/tvNewsSummary"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content" />
+
+        <Button
+            android:id="@+id/btnNewsAccept"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content" />
+
+        <Button
+            android:id="@+id/btnNewsDecline"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content" />
+
+        <TextView
+            android:id="@+id/tvVoiceStatus"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content" />
+
+        <TextView
+            android:id="@+id/tvLogConsole"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content" />
+    </LinearLayout>
+
+</LinearLayout>

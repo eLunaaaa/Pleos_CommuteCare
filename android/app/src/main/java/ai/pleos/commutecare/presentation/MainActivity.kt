@@ -128,6 +128,7 @@ class MainActivity : AppCompatActivity() {
         savedInstanceState?.getStringArrayList("announcedPrompts")?.let { announcedPrompts.addAll(it) }
         initVoiceManager()
         setupClickListeners()
+        setupGlassSpringFeedback()
         applyDrivingRestrictions(true)
         initNaviManager()
         initVehicleManager()
@@ -334,6 +335,10 @@ class MainActivity : AppCompatActivity() {
         binding.btnPrecondition.setOnClickListener {
             vehicleManager.startPreconditioning(currentTargetTemp, 2) { success ->
                 runOnUiThread {
+                    if (success) {
+                        isCareActive = true
+                        binding.teslaVehicleView.updateTelemetry(currentTargetTemp, true, currentSpeedKmh)
+                    }
                     Toast.makeText(
                         this@MainActivity,
                         if (success) "공조·열선 설정 완료 (미탑승 시 10분 후 종료)" else "차량 SDK 응답 확인 필요",
@@ -596,6 +601,7 @@ class MainActivity : AppCompatActivity() {
     private fun updateSpeedDisplay() {
         binding.tvSpeed.text = "%.0f km/h".format(currentSpeedKmh) +
             (currentSpeedLimit?.let { " / 제한 ${it}" } ?: "")
+        binding.teslaVehicleView.updateTelemetry(currentTargetTemp, isCareActive, currentSpeedKmh)
     }
 
     /**
@@ -893,6 +899,7 @@ class MainActivity : AppCompatActivity() {
                 currentTargetTemp = requested
                 patternEngine.updateTemperaturePreference(requested)
                 binding.tvTargetTempDisplay.text = "${currentTargetTemp}°C"
+                binding.teslaVehicleView.updateTelemetry(currentTargetTemp, isCareActive, currentSpeedKmh)
                 appendLog("수동 공조 온도 적용: ${currentTargetTemp}℃")
                 voiceManager.speak("목표 온도를 ${currentTargetTemp}도로 설정했습니다.")
             } else {
@@ -974,6 +981,7 @@ class MainActivity : AppCompatActivity() {
                 // 3단계: 고속 주행 시속 85km/h 가속 -> 심리음향학 로드노이즈 마스킹 EQ + 소음 대비 터치 퀵리플라이
                 appendLog("[3단계: 소음 대응 하이브리드] 고속도로 진입 (차속 85km/h) -> 심리음향학 EQ 추천 표시 (실제 오디오 미적용) 및 소음 안심 퀵리플라이")
                 binding.tvSpeed.text = "85 km/h (시연)"
+                binding.teslaVehicleView.updateTelemetry(currentTargetTemp, true, 85f)
                 updateAcousticEnvironment(85f)
                 showQuickReplyPanel(
                     question = "\"주행 소음이 감지되었습니다. 실내 온도를 조절할까요?\"",
@@ -1036,6 +1044,58 @@ class MainActivity : AppCompatActivity() {
         outState.putStringArrayList("handledPrompts", ArrayList(handledPrompts))
         outState.putStringArrayList("announcedPrompts", ArrayList(announcedPrompts))
         super.onSaveInstanceState(outState)
+    }
+
+    /**
+     * @brief 애플 글래스모픽 버튼에 고주사율 스프링 터치 피드백(Scale 0.94 -> 1.0)을 적용한다.
+     * @return Unit
+     * @throws 없음
+     */
+    private fun setupGlassSpringFeedback() {
+        val springViews = listOf(
+            binding.btnJudgeDemoTour,
+            binding.btnRefreshAiBriefing,
+            binding.btnTempDown,
+            binding.btnTempUp,
+            binding.btnPrecondition,
+            binding.btnVoiceMic,
+            binding.btnVoiceReplay,
+            binding.btnVoiceStop,
+            binding.btnPlayMusic,
+            binding.btnTriggerTravelMode,
+            binding.btnConfirmCommute,
+            binding.btnNaviSimWork,
+            binding.btnNaviSimTravel,
+            binding.btnNaviSimClear
+        )
+        val springInterpolator = android.view.animation.OvershootInterpolator(1.6f)
+        springViews.forEach { target ->
+            target.setOnTouchListener { v, event ->
+                when (event.actionMasked) {
+                    android.view.MotionEvent.ACTION_DOWN -> {
+                        v.animate().cancel()
+                        v.animate()
+                            .scaleX(0.94f)
+                            .scaleY(0.94f)
+                            .alpha(0.86f)
+                            .setDuration(90L)
+                            .start()
+                    }
+                    android.view.MotionEvent.ACTION_UP,
+                    android.view.MotionEvent.ACTION_CANCEL -> {
+                        v.animate().cancel()
+                        v.animate()
+                            .scaleX(1.0f)
+                            .scaleY(1.0f)
+                            .alpha(1.0f)
+                            .setDuration(220L)
+                            .setInterpolator(springInterpolator)
+                            .start()
+                    }
+                }
+                false
+            }
+        }
     }
 
     /**
