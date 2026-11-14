@@ -50,6 +50,7 @@ import android.os.SystemClock
 import android.util.Log
 import android.view.View
 import android.widget.Toast
+import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
 import java.util.Calendar
@@ -375,6 +376,90 @@ class MainActivity : AppCompatActivity() {
         binding.btnPlayMusic.setOnClickListener {
             playCurrentCuratedMusic()
         }
+
+        // 대시보드 위젯 터치 시 상세 팝업 오픈
+        binding.cardBriefingTile.setOnClickListener {
+            showBriefingPopup()
+        }
+        binding.cardAudioTile.setOnClickListener {
+            showAudioPopup()
+        }
+        binding.cardModeTile.setOnClickListener {
+            showModeAndLogPopup()
+        }
+    }
+
+    /**
+     * @brief AI 브리핑·날씨·맞춤 뉴스 상세 팝업을 표시한다.
+     * @return Unit
+     * @throws 없음
+     */
+    private fun showBriefingPopup() {
+        val message = buildString {
+            append("[기상 현황]\n${binding.tvWeatherDetails.text}\n\n")
+            append("[AI 맞춤 브리핑]\n${binding.tvAiBriefing.text}\n\n")
+            append("[맞춤 뉴스 추천]\n${binding.tvNewsTitle.text}\n${binding.tvNewsSummary.text}")
+        }
+        AlertDialog.Builder(this)
+            .setTitle("AI 브리핑 및 뉴스")
+            .setMessage(message)
+            .setPositiveButton("뉴스 요약 듣기") { _, _ ->
+                currentNewsItem?.let { onAcceptNewsSummary(it) } ?: requestAiBriefing()
+            }
+            .setNeutralButton("브리핑 갱신") { _, _ ->
+                requestAiBriefing()
+            }
+            .setNegativeButton("닫기", null)
+            .show()
+    }
+
+    /**
+     * @brief 심리음향학 추천 EQ 및 트랙 상세 팝업을 표시한다.
+     * @return Unit
+     * @throws 없음
+     */
+    private fun showAudioPopup() {
+        val message = buildString {
+            append("${binding.tvAudioInfo.text}\n\n")
+            append("${binding.tvAcousticBasis.text}")
+        }
+        AlertDialog.Builder(this)
+            .setTitle("추천 사운드 · EQ 설정")
+            .setMessage(message)
+            .setPositiveButton("YouTube Music 재생") { _, _ ->
+                playCurrentCuratedMusic()
+            }
+            .setNegativeButton("닫기", null)
+            .show()
+    }
+
+    /**
+     * @brief 목적지 설정·여행 모드·무드램프·시스템 로그 상세 팝업을 표시한다.
+     * @return Unit
+     * @throws 없음
+     */
+    private fun showModeAndLogPopup() {
+        val logs = binding.tvLogConsole.text.toString().lines().take(6).joinToString("\n")
+        val message = buildString {
+            append("${binding.tvNaviStatus.text}\n")
+            append("${binding.tvLightingInfo.text} (${binding.tvLightingBasis.text})\n")
+            if (binding.tvTravelBanner.visibility == View.VISIBLE) {
+                append("\n${binding.tvTravelBanner.text}\n")
+            }
+            append("\n[최근 시스템 로그]\n$logs")
+        }
+        AlertDialog.Builder(this)
+            .setTitle("주행 모드 및 시스템 상태")
+            .setMessage(message)
+            .setPositiveButton("출근 목적지 설정") { _, _ ->
+                naviManager.simulateDestination("현대자동차 양재 본사", "서울특별시 서초구 헌릉로 12", 37.4640, 127.0434)
+                Toast.makeText(this, "출근 목적지 설정 완료", Toast.LENGTH_SHORT).show()
+            }
+            .setNeutralButton("여행 모드 전환") { _, _ ->
+                toggleTravelMode()
+            }
+            .setNegativeButton("닫기", null)
+            .show()
     }
 
     /**
@@ -495,9 +580,8 @@ class MainActivity : AppCompatActivity() {
         isUxRestricted = restricted
         val visibility = if (restricted) View.GONE else View.VISIBLE
         binding.layoutDetailedDashboard.visibility = visibility
-        binding.layoutDiagnostics.visibility = visibility
-        listOf(binding.btnNaviSimWork, binding.btnNaviSimTravel, binding.btnJudgeDemoTour)
-            .forEach { it.visibility = visibility }
+        binding.layoutDiagnostics.visibility = View.GONE
+        binding.btnJudgeDemoTour.visibility = visibility
         binding.btnNaviSimClear.visibility = View.GONE
         binding.tvDrivingStatus.visibility = if (restricted) View.VISIBLE else View.GONE
         binding.layoutQuickReplyCard.visibility = if (!restricted && pendingQuickReplyYes != null) View.VISIBLE else View.GONE
