@@ -1,25 +1,24 @@
 /**
  * @file PloOceanBootView.kt
- * @brief Pleos Flo 앱 시작 시 바다 수면 물결과 파동을 그리는 부팅 스플래시 배경 캔버스 뷰.
+ * @brief Pleos Flo 앱 시작 시 미니멀한 2D 선과 '첨벙(Splash)' 물방울 애니메이션을 그리는 부팅 뷰.
  *
  * 동작 순서:
- * 1. 아이스 블루 & 화이트 톤온톤 그라데이션 배경 위에 3겹의 반투명 바다 물결(Sine Wave)을 렌더링한다.
- * 2. 상어 마스코트 '플로(Plo)'가 수면 위로 떠오르는 중심부에 동심원 물결 파동(Water Ripple)을 확산시킨다.
- * 3. 약 3초간의 부팅 시퀀스 동안 30fps 프레임 페이싱으로 부드럽게 애니메이션을 수행한다.
+ * 1. 깨끗한 화이트-아이스블루 단색 배경(#F8FBFF)을 유지한다.
+ * 2. 최대한 단순한 2D 곡선 2줄로 수면을 표현한다.
+ * 3. 2D 상어 마스코트가 수면 위로 올라올 때 좌우로 튀어오르는 2D 물방울('첨벙' 효과)을 렌더링한다.
  */
 package ai.pleos.commutecare.presentation
 
 import android.content.Context
 import android.graphics.Canvas
 import android.graphics.Color
-import android.graphics.LinearGradient
 import android.graphics.Paint
 import android.graphics.Path
-import android.graphics.Shader
 import android.util.AttributeSet
 import android.view.Choreographer
 import android.view.View
 import kotlin.math.PI
+import kotlin.math.cos
 import kotlin.math.sin
 
 class PloOceanBootView @JvmOverloads constructor(
@@ -29,58 +28,47 @@ class PloOceanBootView @JvmOverloads constructor(
 ) : View(context, attrs, defStyleAttr), Choreographer.FrameCallback {
 
     private var phase = 0f
+    private var splashProgress = 0f
     private var lastDrawNanos = 0L
     private var isRunning = false
 
-    private val skyPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        style = Paint.Style.FILL
-    }
-    private val wavePaint1 = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        style = Paint.Style.FILL
-        color = Color.argb(95, 125, 211, 252) // Light Sky Wave
-    }
-    private val wavePaint2 = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        style = Paint.Style.FILL
-        color = Color.argb(120, 56, 189, 248) // Crystal Ocean Wave
-    }
-    private val wavePaint3 = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        style = Paint.Style.FILL
-        color = Color.argb(145, 37, 99, 235)  // Deep Pleos Blue Wave
-    }
-    private val ripplePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+    private val linePaintPrimary = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         style = Paint.Style.STROKE
-        strokeWidth = 3.5f
-        color = Color.argb(160, 56, 189, 248)
+        strokeWidth = 6f
+        strokeCap = Paint.Cap.ROUND
+        color = Color.parseColor("#38BDF8")
+    }
+
+    private val linePaintSecondary = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        style = Paint.Style.STROKE
+        strokeWidth = 4f
+        strokeCap = Paint.Cap.ROUND
+        color = Color.parseColor("#93C5FD")
+    }
+
+    private val dropletPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        style = Paint.Style.FILL
+        color = Color.parseColor("#38BDF8")
     }
 
     private val wavePath = Path()
-    private var cachedH = -1f
 
-    /**
-     * @brief 뷰가 윈도우에 연결될 때 바다 물결 애니메이션을 시작한다.
-     * @return Unit
-     */
     override fun onAttachedToWindow() {
         super.onAttachedToWindow()
-        isRunning = true
-        Choreographer.getInstance().postFrameCallback(this)
+        startAnimation()
     }
 
-    /**
-     * @brief 뷰가 윈도우에서 분리될 때 애니메이션 콜백을 해제한다.
-     * @return Unit
-     */
     override fun onDetachedFromWindow() {
-        isRunning = false
-        Choreographer.getInstance().removeFrameCallback(this)
+        stopAnimation()
         super.onDetachedFromWindow()
     }
 
     /**
-     * @brief 부팅 오버레이가 다시 표시될 때 바다 물결 애니메이션을 재시작한다.
+     * @brief 부팅 오버레이 표시 시 2D 수면 선 및 첨벙 물방울 애니메이션을 시작한다.
      * @return Unit
      */
     fun startAnimation() {
+        splashProgress = 0f
         if (!isRunning) {
             isRunning = true
             Choreographer.getInstance().postFrameCallback(this)
@@ -88,7 +76,7 @@ class PloOceanBootView @JvmOverloads constructor(
     }
 
     /**
-     * @brief 부팅 오버레이가 숨겨질 때 애니메이션을 즉시 중지하여 CPU 자원을 절약한다.
+     * @brief 부팅 오버레이 종료 시 애니메이션을 중지한다.
      * @return Unit
      */
     fun stopAnimation() {
@@ -96,79 +84,66 @@ class PloOceanBootView @JvmOverloads constructor(
         Choreographer.getInstance().removeFrameCallback(this)
     }
 
-    /**
-     * @brief 프레임 콜백마다 물결 위상을 갱신한다.
-     * @param frameTimeNanos VSync 타임스탬프 (ns)
-     * @return Unit
-     */
     override fun doFrame(frameTimeNanos: Long) {
         if (!isRunning || visibility != VISIBLE) return
         if (frameTimeNanos - lastDrawNanos >= 32_000_000L) {
             lastDrawNanos = frameTimeNanos
-            phase = (phase + 0.045f) % (2f * PI.toFloat())
+            phase = (phase + 0.08f) % (2f * PI.toFloat())
+            splashProgress = (splashProgress + 0.025f).coerceAtMost(1.2f)
             invalidate()
         }
         Choreographer.getInstance().postFrameCallback(this)
     }
 
-    /**
-     * @brief 바다 수면 물결과 수면 파동을 캔버스에 렌더링한다.
-     * @param canvas Android Canvas
-     * @return Unit
-     */
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
         val w = width.toFloat()
         val h = height.toFloat()
         if (w <= 0f || h <= 0f) return
 
-        if (cachedH != h) {
-            cachedH = h
-            skyPaint.shader = LinearGradient(
-                0f, 0f, 0f, h,
-                Color.parseColor("#F8FBFF"),
-                Color.parseColor("#D8ECFF"),
-                Shader.TileMode.CLAMP
-            )
-        }
-        canvas.drawRect(0f, 0f, w, h, skyPaint)
+        // 1) 미니멀 단색 배경
+        canvas.drawColor(Color.parseColor("#F8FBFF"))
 
-        // 수면 위 동심원 파동 (상어가 올라오는 위치 주변)
         val cx = w * 0.5f
-        val cy = h * 0.46f
-        val pulse = (sin(phase.toDouble()).toFloat() * 0.5f + 0.5f)
-        ripplePaint.alpha = (90 + pulse * 80).toInt()
-        canvas.drawOval(cx - 190f - pulse * 35f, cy + 55f, cx + 190f + pulse * 35f, cy + 125f + pulse * 12f, ripplePaint)
-        ripplePaint.alpha = (55 + (1f - pulse) * 70).toInt()
-        canvas.drawOval(cx - 260f - pulse * 45f, cy + 45f, cx + 260f + pulse * 45f, cy + 140f + pulse * 18f, ripplePaint)
+        val waterY = h * 0.52f
 
-        // 3겹의 바다 물결 레이어
-        drawSineWave(canvas, w, h, baseY = h * 0.56f, amp = 22f, freq = 1.8f, phaseShift = phase, paint = wavePaint1)
-        drawSineWave(canvas, w, h, baseY = h * 0.62f, amp = 26f, freq = 1.4f, phaseShift = phase + 1.3f, paint = wavePaint2)
-        drawSineWave(canvas, w, h, baseY = h * 0.69f, amp = 20f, freq = 2.1f, phaseShift = phase + 2.5f, paint = wavePaint3)
+        // 2) 단순한 2D 수면 물결 선 2줄
+        drawSimpleWaveLine(canvas, cx - 280f, cx + 280f, waterY, amp = 10f, phaseShift = phase, paint = linePaintPrimary)
+        drawSimpleWaveLine(canvas, cx - 200f, cx + 200f, waterY + 26f, amp = 7f, phaseShift = phase + 1.5f, paint = linePaintSecondary)
+
+        // 3) '첨벙!' 2D 물방울 6개 (상어가 올라올 때 포물선으로 톡 튀는 단순 2D 원/선)
+        val angles = floatArrayOf(-145f, -125f, -108f, -72f, -55f, -35f)
+        val t = (splashProgress % 1.0f)
+        val alpha = ((1f - t) * 235f).toInt().coerceIn(0, 235)
+        dropletPaint.alpha = alpha
+        for (i in angles.indices) {
+            val rad = Math.toRadians(angles[i].toDouble())
+            val dist = 95f + t * 130f
+            val gravity = t * t * 75f
+            val dx = cx + cos(rad).toFloat() * dist
+            val dy = (waterY - 40f) + sin(rad).toFloat() * dist + gravity
+            val radius = if (i % 2 == 0) 7.5f else 5.5f
+            canvas.drawCircle(dx, dy, radius, dropletPaint)
+        }
     }
 
-    private fun drawSineWave(
+    private fun drawSimpleWaveLine(
         canvas: Canvas,
-        w: Float,
-        h: Float,
+        startX: Float,
+        endX: Float,
         baseY: Float,
         amp: Float,
-        freq: Float,
         phaseShift: Float,
         paint: Paint
     ) {
         wavePath.reset()
-        wavePath.moveTo(0f, h)
-        val steps = 32
+        val steps = 24
+        val span = endX - startX
         for (i in 0..steps) {
-            val x = w * i / steps
-            val angle = (i.toFloat() / steps) * freq * 2f * PI.toFloat() + phaseShift
-            val y = baseY + sin(angle.toDouble()).toFloat() * amp
-            wavePath.lineTo(x, y)
+            val x = startX + span * (i.toFloat() / steps)
+            val y = baseY + sin((i.toFloat() / steps) * 2f * PI.toFloat() + phaseShift) * amp
+            if (i == 0) wavePath.moveTo(x, y) else wavePath.lineTo(x, y)
         }
-        wavePath.lineTo(w, h)
-        wavePath.close()
         canvas.drawPath(wavePath, paint)
     }
 }

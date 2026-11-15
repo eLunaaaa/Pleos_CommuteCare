@@ -35,8 +35,8 @@
                     android:layout_height="48dp"
                     android:layout_marginEnd="12dp"
                     android:contentDescription="Plo Shark Mascot"
-                    android:scaleType="centerCrop"
-                    android:src="@drawable/mascot_plo_shark" />
+                    android:scaleType="fitCenter"
+                    android:src="@drawable/ic_mascot_shark_2d" />
 
                 <TextView
                     android:id="@+id/tvGreetingTitle"
@@ -330,11 +330,11 @@
                         android:orientation="horizontal">
 
                         <ImageView
-                            android:layout_width="34dp"
-                            android:layout_height="34dp"
+                            android:layout_width="36dp"
+                            android:layout_height="36dp"
                             android:layout_marginEnd="8dp"
                             android:contentDescription="Plo Avatar"
-                            android:src="@drawable/mascot_plo_shark" />
+                            android:src="@drawable/ic_mascot_shark_2d" />
 
                         <TextView
                             android:layout_width="wrap_content"
@@ -353,12 +353,12 @@
                         android:layout_weight="1"
                         android:ellipsize="end"
                         android:gravity="center_vertical"
-                        android:lineSpacingExtra="5dp"
+                        android:lineSpacingExtra="6dp"
                         android:maxLines="4"
                         android:text="민석님, 안녕하세요! 플로가 출근길 최적의 실내 환경을 준비했습니다."
-                        android:textColor="#0F172A"
+                        android:textColor="#94A3B8"
                         android:textSize="26sp"
-                        android:textStyle="bold" />
+                        android:textStyle="normal" />
 
                     <!-- 상황별 퀵 리플라이 (3버튼 제한) -->
                     <LinearLayout
@@ -657,7 +657,54 @@
         </LinearLayout>
     </LinearLayout>
 
-    <!-- 부팅 스플래시 오버레이: 바다 수면에서 마스코트 상어 '플로(Plo)'가 떠오르며 Pleos Flo 로고 표시 -->
+    <!-- 유튜브 뮤직 스타일 음성 청취 마이크 팝업 오버레이 -->
+    <FrameLayout
+        android:id="@+id/layoutMicListeningPopup"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="#660F172A"
+        android:clickable="true"
+        android:focusable="true"
+        android:visibility="gone">
+
+        <LinearLayout
+            android:layout_width="560dp"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center"
+            android:background="@drawable/bg_glass_apple_pane"
+            android:gravity="center"
+            android:orientation="vertical"
+            android:padding="32dp">
+
+            <TextView
+                android:id="@+id/tvMicPopupStatus"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="플로가 듣고 있어요..."
+                android:textColor="#2563EB"
+                android:textSize="24sp"
+                android:textStyle="bold" />
+
+            <ai.pleos.commutecare.presentation.VoiceMicPulseView
+                android:id="@+id/micPulseView"
+                android:layout_width="380dp"
+                android:layout_height="170dp"
+                android:layout_marginTop="12dp"
+                android:layout_marginBottom="12dp" />
+
+            <TextView
+                android:id="@+id/tvMicPopupTranscript"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:gravity="center"
+                android:text="&quot;플로야, 오늘 출근길 브리핑 해줘&quot;"
+                android:textColor="#0F172A"
+                android:textSize="23sp"
+                android:textStyle="bold" />
+        </LinearLayout>
+    </FrameLayout>
+
+    <!-- 부팅 스플래시 오버레이: 2D 미니멀 선 + 첨벙 상어 마스코트 + Pleos Flo만 심플 표시 -->
     <FrameLayout
         android:id="@+id/layoutBootSplash"
         android:layout_width="match_parent"
@@ -682,36 +729,27 @@
 
             <ImageView
                 android:id="@+id/ivBootSharkMascot"
-                android:layout_width="240dp"
-                android:layout_height="240dp"
-                android:contentDescription="Plo Shark Rising"
-                android:scaleType="centerCrop"
-                android:src="@drawable/mascot_plo_shark" />
+                android:layout_width="210dp"
+                android:layout_height="210dp"
+                android:contentDescription="Plo 2D Shark Rising"
+                android:scaleType="fitCenter"
+                android:src="@drawable/ic_mascot_shark_2d" />
 
             <TextView
                 android:id="@+id/tvBootBrandTitle"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="16dp"
+                android:layout_marginTop="12dp"
                 android:text="Pleos Flo"
                 android:textColor="#0F172A"
-                android:textSize="52sp"
+                android:textSize="54sp"
                 android:textStyle="bold" />
 
             <TextView
                 android:id="@+id/tvBootBrandSubtitle"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="6dp"
-                android:background="@drawable/bg_glass_apple_pill"
-                android:paddingStart="22dp"
-                android:paddingTop="8dp"
-                android:paddingEnd="22dp"
-                android:paddingBottom="8dp"
-                android:text="AI Mobility Secretary · 플로 (Plo)"
-                android:textColor="#2563EB"
-                android:textSize="22sp"
-                android:textStyle="bold" />
+                android:visibility="gone" />
         </LinearLayout>
     </FrameLayout>
 

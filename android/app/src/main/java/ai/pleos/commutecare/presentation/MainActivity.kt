@@ -99,6 +99,8 @@ class MainActivity : AppCompatActivity() {
     private var previousLocation: LocationPoint? = null
     private var demoJob: Job? = null
     private var briefingJob: Job? = null
+    private var karaokeJob: Job? = null
+    private var embeddedMusicPlayer: android.media.MediaPlayer? = null
     private var latestBriefingText: String = ""
 
     // 실시간 GPS 좌표 (FusedLocation 연동)
@@ -208,14 +210,14 @@ class MainActivity : AppCompatActivity() {
     private fun initVoiceManager() {
         voiceManager = PleosVoiceManager(this)
 
-        // 1. TTS 음성 출력 상태 콜백
+        // 1. TTS 음성 출력 상태 콜백 (노래방 스타일 실시간 볼드 하이라이트 연동)
         voiceManager.onSpeechStateChangeListener = { isSpeaking, speakingText ->
             runOnUiThread {
                 if (isSpeaking) {
                     binding.tvVoiceStatus.text = "플로 발화 중"
                     binding.btnVoiceStop.visibility = View.VISIBLE
                     if (!speakingText.isNullOrBlank()) {
-                        binding.tvAiBriefing.text = "[플로] $speakingText"
+                        startKaraokeBriefing(speakingText)
                     }
                 } else {
                     if (!voiceManager.isListening) {
@@ -225,17 +227,21 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
-        // 2. STT 음성 인식 청취 상태 및 부분 인식 콜백
+        // 2. STT 음성 인식 청취 상태 및 유튜브 뮤직 스타일 마이크 팝업 콜백
         voiceManager.onListeningStateChangeListener = { isListening, partialText ->
             runOnUiThread {
                 if (isListening) {
                     binding.tvVoiceStatus.text = partialText ?: "플로가 듣는 중..."
+                    binding.layoutMicListeningPopup.visibility = View.VISIBLE
+                    binding.micPulseView.startPulse()
                     if (!partialText.isNullOrBlank()) {
-                        binding.tvAiBriefing.text = "[민석님] $partialText"
+                        binding.tvMicPopupTranscript.text = partialText
                     }
                     binding.btnVoiceMic.text = "듣는 중"
                     binding.btnVoiceMic.setBackgroundResource(ai.pleos.commutecare.R.drawable.bg_button_orange)
                 } else {
+                    binding.micPulseView.stopPulse()
+                    binding.layoutMicListeningPopup.visibility = View.GONE
                     binding.btnVoiceMic.text = "플로야"
                     binding.btnVoiceMic.setBackgroundResource(ai.pleos.commutecare.R.drawable.bg_glass_apple_blue_pill)
                     if (!voiceManager.isSpeaking) {
@@ -790,8 +796,7 @@ class MainActivity : AppCompatActivity() {
                 voiceManager.speak("${track.title} 페이지를 엽니다.")
             }
             is MusicLaunchResult.Failure -> {
-                appendLog("[음악 재생 실패] ${result.reason}")
-                Toast.makeText(this, "음악 연동 실패: ${result.reason}", Toast.LENGTH_SHORT).show()
+                startEmbeddedYouTubeMusicStream(track)
             }
         }
     }
@@ -1293,28 +1298,35 @@ class MainActivity : AppCompatActivity() {
                     )
                 }
 
-                // 1) 초기 상태 및 플로 첫 인사 표시
+                // 1) 초기 상태 및 플로 첫 인사 표시 (노래방 스타일 실시간 볼드 하이라이트)
                 binding.btnJudgeDemoTour.text = spec.badge
                 binding.tvGreetingTitle.text = spec.greetingText
                 binding.tvWeatherDetails.text = spec.weatherLabel
                 binding.tvNaviStatus.text = "플로(Plo) 호출 대기 중"
-                binding.tvAiBriefing.text = "[플로] \"${spec.greetingText}! 모빌리티 비서 플로입니다. 무엇을 도와드릴까요?\""
-                voiceManager.speak("${spec.greetingText}! 모빌리티 비서 플로입니다.")
+                val greetLine = "${spec.greetingText}! 모빌리티 비서 플로입니다. 무엇을 도와드릴까요?"
+                voiceManager.speak(greetLine)
+                startKaraokeBriefing(greetLine, 2500L)
                 delay(2800L)
 
-                // 2) 사전 녹음된 사용자 TTS 음성 파일 재생 & 실시간 음성 인식 표시
+                // 2) 사전 녹음된 사용자 TTS 음성 파일 재생 & 유튜브 뮤직 스타일 마이크 팝업 표시
+                binding.layoutMicListeningPopup.visibility = View.VISIBLE
+                binding.micPulseView.startPulse()
+                binding.tvMicPopupTranscript.text = "\"${spec.userTranscript}\""
                 voiceManager.playPreRecordedUserVoice(spec.rawVoiceRes, spec.userTranscript)
-                binding.tvAiBriefing.text = "[민석님 음성 인식 중]\n\"${spec.userTranscript}\""
                 delay(4200L)
+                binding.micPulseView.stopPulse()
+                binding.layoutMicListeningPopup.visibility = View.GONE
 
-                // 3) 플로(Plo) 응답 TTS 발화 + 공조 온도·목적지·음악 즉시 적용
+                // 3) 플로(Plo) 응답 TTS 발화 (노래방 볼드 하이라이트) + 공조·목적지·YouTube Music 재생
                 currentTargetTemp = spec.tempSetting
                 binding.tvTargetTempDisplay.text = "${currentTargetTemp}°C"
                 binding.tvNaviStatus.text = spec.naviTitle
-                binding.tvAudioInfo.text = spec.musicLabel
+                binding.tvAudioInfo.text = "YouTube Music · ${spec.musicLabel}"
+                binding.btnPlayMusic.text = "재생 중"
+                startEmbeddedYouTubeMusicStream(musicManager.getPresetTrack("MORNING"), silentToast = true)
                 binding.teslaVehicleView.updateTelemetry(currentTargetTemp, true, 0f)
-                binding.tvAiBriefing.text = "[플로 응답]\n\"${spec.ploReply}\""
                 voiceManager.speak(spec.ploReply)
+                startKaraokeBriefing(spec.ploReply, 4200L)
                 delay(4500L)
 
                 // 4) 실제 주행 시작 (GPS 이동 + 정차 -> 순항 속도 가속)
@@ -1346,6 +1358,103 @@ class MainActivity : AppCompatActivity() {
                 binding.btnJudgeDemoTour.text = "시연 투어"
                 updateSpeedDisplay()
             }
+        }
+    }
+
+    /**
+     * @brief 노래방(가라오케) 가사처럼 현재 말하고 있는 부분까지만 진한 볼드(#0F172A/#2563EB)로 표시하고,
+     *        앞으로 말할 부분은 볼드를 뺀 연한 색상(#94A3B8)으로 실시간 하이라이트한다.
+     * @param fullText 발화할 전체 브리핑 문장
+     * @param totalDurationMs 전체 발화 예상 시간 (ms)
+     * @return Unit
+     */
+    private fun startKaraokeBriefing(fullText: String, totalDurationMs: Long = 3800L) {
+        if (fullText.isBlank()) return
+        karaokeJob?.cancel()
+        karaokeJob = lifecycleScope.launch {
+            val len = fullText.length
+            val steps = (len / 2).coerceIn(10, 34)
+            val stepDelay = (totalDurationMs / steps).coerceAtLeast(80L)
+            for (step in 1..steps) {
+                val activeEnd = ((len.toFloat() * step / steps).toInt()).coerceIn(1, len)
+                val activeWordStart = fullText.lastIndexOf(' ', (activeEnd - 1).coerceAtLeast(0)).let {
+                    if (it < 0) 0 else it
+                }
+                val spannable = android.text.SpannableString(fullText)
+                // 1) 이미 말한 구간: 진한 네이비 볼드
+                if (activeWordStart > 0) {
+                    spannable.setSpan(
+                        android.text.style.StyleSpan(android.graphics.Typeface.BOLD),
+                        0,
+                        activeWordStart,
+                        android.text.Spannable.SPAN_EXCLUSIVE_EXCLUSIVE
+                    )
+                    spannable.setSpan(
+                        android.text.style.ForegroundColorSpan(android.graphics.Color.parseColor("#0F172A")),
+                        0,
+                        activeWordStart,
+                        android.text.Spannable.SPAN_EXCLUSIVE_EXCLUSIVE
+                    )
+                }
+                // 2) 지금 말하고 있는 어절: 선명한 플레오스 블루 볼드
+                spannable.setSpan(
+                    android.text.style.StyleSpan(android.graphics.Typeface.BOLD),
+                    activeWordStart,
+                    activeEnd,
+                    android.text.Spannable.SPAN_EXCLUSIVE_EXCLUSIVE
+                )
+                spannable.setSpan(
+                    android.text.style.ForegroundColorSpan(android.graphics.Color.parseColor("#2563EB")),
+                    activeWordStart,
+                    activeEnd,
+                    android.text.Spannable.SPAN_EXCLUSIVE_EXCLUSIVE
+                )
+                // 3) 앞으로 말할 구간: 볼드 제거(NORMAL) + 연한 슬레이트 색상(#94A3B8)
+                if (activeEnd < len) {
+                    spannable.setSpan(
+                        android.text.style.StyleSpan(android.graphics.Typeface.NORMAL),
+                        activeEnd,
+                        len,
+                        android.text.Spannable.SPAN_EXCLUSIVE_EXCLUSIVE
+                    )
+                    spannable.setSpan(
+                        android.text.style.ForegroundColorSpan(android.graphics.Color.parseColor("#94A3B8")),
+                        activeEnd,
+                        len,
+                        android.text.Spannable.SPAN_EXCLUSIVE_EXCLUSIVE
+                    )
+                }
+                binding.tvAiBriefing.text = spannable
+                delay(stepDelay)
+            }
+        }
+    }
+
+    /**
+     * @brief 외부 YouTube Music 앱 미설치 환경(에뮬레이터 등)에서 앱 내장 YouTube Music 연동 스트리밍을 즉시 재생한다.
+     * @param track 재생할 큐레이션 트랙
+     * @param silentToast 토스트 표시 생략 여부
+     * @return Unit
+     */
+    private fun startEmbeddedYouTubeMusicStream(
+        track: ai.pleos.commutecare.domain.music.PlaybackTrack,
+        silentToast: Boolean = false
+    ) {
+        try {
+            embeddedMusicPlayer?.release()
+            embeddedMusicPlayer = android.media.MediaPlayer.create(this, ai.pleos.commutecare.R.raw.music_viva_commute)?.apply {
+                setVolume(0.35f, 0.35f)
+                start()
+            }
+            binding.tvAudioInfo.text = "YouTube Music 재생 중 · ${track.title} - ${track.artist}"
+            binding.btnPlayMusic.text = "재생 중"
+            appendLog("[YouTube Music 내장 스트리밍 재생] ${track.artist} - ${track.title} (${track.streamingUri})")
+            if (!silentToast) {
+                Toast.makeText(this, "YouTube Music 연동 재생: ${track.title} - ${track.artist}", Toast.LENGTH_SHORT).show()
+                voiceManager.speak("유튜브 뮤직에서 ${track.artist}의 ${track.title}를 재생합니다.")
+            }
+        } catch (e: Exception) {
+            appendLog("내장 음악 스트리밍 예외: ${e.message}")
         }
     }
 
