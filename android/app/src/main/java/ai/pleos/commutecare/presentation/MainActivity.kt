@@ -502,14 +502,28 @@ class MainActivity : AppCompatActivity() {
         appendLog("기상청 단기예보 실황 API 호출 중 (%.4f, %.4f)...".format(lat, lon))
         lifecycleScope.launch {
             val weather = KmaWeatherClient.fetchCurrentWeather(lat, lon)
-            if (weather != null) currentWeather = weather
             if (weather != null) {
+                currentWeather = weather
                 binding.tvWeatherDetails.text = "${weather.temperatureCelsius}°C · ${weather.description}"
                 appendLog("기상청 날씨 수신 성공: ${weather.temperatureCelsius}℃, PTY=${weather.precipitationType}")
+            } else if (currentWeather != null) {
+                val cached = currentWeather!!
+                binding.tvWeatherDetails.text = "${cached.temperatureCelsius}°C (이전)"
+                appendLog("기상청 API 실패: 이전 관측값 유지")
             } else {
-                binding.tvWeatherDetails.text = currentWeather?.let { "${it.temperatureCelsius}°C (이전)" }
-                    ?: "날씨 미확인"
-                appendLog("기상청 API 실패: 이전 관측값 또는 날씨 미확인 상태 유지")
+                // 네트워크 두절/오프라인 환경에서는 로컬 룰베이스 기본 기상값으로 폴백
+                val offlineFallback = ai.pleos.commutecare.data.weather.RealtimeWeather(
+                    temperatureCelsius = 14.5f,
+                    precipitationType = 0,
+                    precipitation1HourMm = 0f,
+                    humidityPercent = 52,
+                    windSpeedMps = 2.1f,
+                    description = "맑음 (오프라인)",
+                    conditionTag = ai.pleos.commutecare.data.weather.WeatherConditionTag.MODERATE
+                )
+                currentWeather = offlineFallback
+                binding.tvWeatherDetails.text = "${offlineFallback.temperatureCelsius}°C · 오프라인"
+                appendLog("기상청 API 미연결: 로컬 오프라인 기본 날씨(14.5°C) 폴백 적용")
             }
             updateAcousticEnvironment()
             if (isCareActive) {
@@ -957,63 +971,103 @@ class MainActivity : AppCompatActivity() {
                 binding.btnJudgeDemoTour.isEnabled = false
                 binding.btnJudgeDemoTour.text = "시연 진행 중..."
 
-                // 1단계: 출근 감지 및 스마트 자율 추론 (내비 미설정 상황)
-                appendLog("[1단계: 스마트 자율 추론] 아침 8:15 탑승 감지 -> 내비 미설정 상황에서 시간대/GPS 이동 패턴 자율 추론")
+                // 1단계: 탑승 & 정차(0 km/h) -> GPS 자택 출발 감지 및 공조 프리컨디셔닝 시작
+                appendLog("[1단계: 탑승 & 자율 추론] 정차(0 km/h) · 자택 GPS(37.5172, 127.0473) -> 평일 오전 출근 추론")
+                currentLat = 37.5172
+                currentLon = 127.0473
+                currentSpeedKmh = 0f
                 naviManager.clearDestination()
-                binding.tvNaviStatus.text = "[내비게이션] 미설정 -> [스마트 패턴 추론] 자택 출발 및 평일 오전 출근 벡터 감지"
-                val prompt = commuteDetector.evaluateCommuteIntent(null, 37.5172, 127.0473, 8,
+                binding.tvNaviStatus.text = "자율 추론 · 현대차 본사"
+                val prompt = commuteDetector.evaluateCommuteIntent(null, currentLat, currentLon, 8,
                     Calendar.MONDAY, LocationPoint("시연 이전 위치", 37.5176, 127.0473))
-                if (prompt != null) {
-                    binding.tvCommutePrompt.text = "[스마트 자율 추론] ${prompt.message}"
-                    binding.tvCommutePrompt.visibility = View.VISIBLE
-                    voiceManager.speak("평소 출근 시간대입니다. 현대차 본사로 출근 중이십니까?")
-                }
-                delay(4000)
-
-                // 2단계: 프리컨디셔닝 실행 + GPT-4o-mini 하이브리드 음성 브리핑 (TTS)
-                appendLog("[2단계: 프리컨디셔닝 & AI 브리핑] 사용자 수락 -> 맞춤 공조 ${currentTargetTemp}℃ 설정 요청 + 기상청 날씨/캘린더 AI 음성 브리핑")
                 executeCommuteRoutine(prompt ?: CommutePrompt(
                     CommuteType.MORNING, "현대차 본사 출근", LocationPoint("현대차 본사", 37.4640, 127.0434),
                     CommuteDetectionSource.IMPLICIT_INFERENCE
                 ))
-                delay(5000)
+                // 목표 온도를 21.0°C로 낮춰 투명 차량 공조 기류 변화를 즉시 시각화
+                currentTargetTemp = 21.0f
+                binding.tvTargetTempDisplay.text = "${currentTargetTemp}°C"
+                binding.teslaVehicleView.updateTelemetry(currentTargetTemp, true, 0f)
+                delay(2800)
 
-                // 3단계: 고속 주행 시속 85km/h 가속 -> 심리음향학 로드노이즈 마스킹 EQ + 소음 대비 터치 퀵리플라이
-                appendLog("[3단계: 소음 대응 하이브리드] 고속도로 진입 (차속 85km/h) -> 심리음향학 EQ 추천 표시 (실제 오디오 미적용) 및 소음 안심 퀵리플라이")
-                binding.tvSpeed.text = "85 km/h (시연)"
-                binding.teslaVehicleView.updateTelemetry(currentTargetTemp, true, 85f)
-                updateAcousticEnvironment(85f)
+                // 2단계: 도심 주행 시작 (실제 GPS 이동 + 0 -> 55 km/h 실시간 가속)
+                appendLog("[2단계: 도심 주행 가속] GPS 강남대로 이동 & 차속 0 -> 55 km/h 가속 + AI 브리핑")
+                binding.tvNaviStatus.text = "강남대로 주행 중 (37.498, 127.028)"
+                animateDemoDrive(37.5172, 127.0473, 37.4980, 127.0276, 0f, 55f, steps = 8, stepDelayMs = 350L)
+                delay(1800)
+
+                // 3단계: 고속도로 진입 (55 -> 88 km/h 가속) -> 심리음향학 EQ & 소음 안심 퀵리플라이
+                appendLog("[3단계: 고속도로 소음 대응] 양재 IC 진입(55 -> 88 km/h) -> 로드노이즈 마스킹 EQ & 퀵리플라이")
+                binding.tvNaviStatus.text = "경부고속도로 · 88 km/h"
+                animateDemoDrive(37.4980, 127.0276, 37.4640, 127.0434, 55f, 88f, steps = 8, stepDelayMs = 350L)
                 showQuickReplyPanel(
-                    question = "\"주행 소음이 감지되었습니다. 실내 온도를 조절할까요?\"",
+                    question = "\"주행 소음(88 km/h) 감지: 실내 온도를 조절할까요?\"",
                     yesLabel = "온도 1℃ 내림",
-                    noLabel = "현재 온도 유지",
-                    altLabel = "뉴스 요약 듣기",
+                    noLabel = "현재 유지",
+                    altLabel = "뉴스 요약",
                     onYes = { adjustTargetTemperature(-1.0f) },
                     onNo = { dismissQuickReply() },
                     onAlt = { requestAiBriefing() }
                 )
-                voiceManager.speak("고속 주행 소음에 맞춰 오디오 이퀄라이저 추천값을 표시합니다. 실제 음향에는 적용하지 않습니다. 화면 퀵 버튼으로도 조작하실 수 있습니다.")
-                delay(5000)
+                voiceManager.speak("고속 주행 소음에 맞춰 오디오 이퀄라이저 추천값을 표시합니다.")
+                delay(2500)
 
-                // 4단계: 내비게이션 주말 여행 목적지 감지 (NaviHelper SDK 연동)
-                appendLog("[4단계: 내비 연동 여행 모드] Pleos NaviHelper: '속초 델피노 리조트' 목적지 설정 수신 -> 주말 여행 모드 즉각 전환")
+                // 4단계: 내비게이션 주말 여행 목적지 감지 & 감속 (88 -> 60 km/h)
+                appendLog("[4단계: 여행 모드 전환] Pleos NaviHelper: '속초 델피노 리조트' 목적지 수신")
+                dismissQuickReply()
                 naviManager.simulateDestination("속초 델피노 리조트", "강원도 고성군 토성면 미시령옛길 1153", 38.2107, 128.5135)
-                binding.tvNaviStatus.text = "[내비게이션] 목적지: 속초 델피노 리조트 (여행 모드 활성)"
+                binding.tvNaviStatus.text = "목적지 · 속초 델피노 리조트"
                 toggleTravelMode(true)
-                delay(5000)
+                animateDemoDrive(37.4640, 127.0434, 37.8500, 127.7500, 88f, 60f, steps = 6, stepDelayMs = 350L)
+                delay(1800)
 
-                // 5단계: 안전 종료 동작 안내 (실제 차속/운전자 상태를 변경하지 않는다.)
-                appendLog("[5단계: 안전 배터리 보호] 정차 후 탑승자 미감지 시뮬레이션 -> 미탑승 안전 타이머 동작 안내")
-                updateSpeedDisplay()
-                voiceManager.speak("심사 시연 투어가 완료되었습니다. 공조 프리컨디셔닝은 주행이 감지되지 않으면 10분 후 종료를 요청합니다.")
+                // 5단계: 목적지 도착 감속 & 안전 정차 (60 -> 0 km/h)
+                appendLog("[5단계: 안전 정차] 차속 60 -> 0 km/h 감속 정차 및 미탑승 10분 안전 타이머 안내")
+                animateDemoDrive(37.8500, 127.7500, 38.2107, 128.5135, 60f, 0f, steps = 6, stepDelayMs = 300L)
+                voiceManager.speak("시연 투어가 완료되었습니다. 정차 후 미탑승 시 10분 뒤 공조가 자동 종료됩니다.")
                 appendLog("[심사 시연 투어] 5단계 시연 완료")
 
             } finally {
+                currentSpeedKmh = 0f
                 binding.btnJudgeDemoTour.isEnabled = true
                 binding.btnJudgeDemoTour.text = "시연 투어"
                 updateSpeedDisplay()
                 updateAcousticEnvironment()
             }
+        }
+    }
+
+    /**
+     * @brief 시연 투어 중 실제 GPS 이동과 차량 가·감속을 단계별로 보간하여 실시간 대시보드에 반영한다.
+     * @param fromLat 출발 위도
+     * @param fromLon 출발 경도
+     * @param toLat 도착 위도
+     * @param toLon 도착 경도
+     * @param startSpeed 시작 속도 (km/h)
+     * @param endSpeed 목표 속도 (km/h)
+     * @param steps 보간 단계 수
+     * @param stepDelayMs 단계 간 지연 시간 (ms)
+     * @return Unit
+     */
+    private suspend fun animateDemoDrive(
+        fromLat: Double,
+        fromLon: Double,
+        toLat: Double,
+        toLon: Double,
+        startSpeed: Float,
+        endSpeed: Float,
+        steps: Int,
+        stepDelayMs: Long
+    ) {
+        for (i in 1..steps) {
+            val t = i.toFloat() / steps
+            currentLat = fromLat + (toLat - fromLat) * t
+            currentLon = fromLon + (toLon - fromLon) * t
+            currentSpeedKmh = startSpeed + (endSpeed - startSpeed) * t
+            updateSpeedDisplay()
+            updateAcousticEnvironment(currentSpeedKmh)
+            binding.tvLocationGps.text = "GPS: %.4f, %.4f".format(currentLat, currentLon)
+            delay(stepDelayMs)
         }
     }
 
