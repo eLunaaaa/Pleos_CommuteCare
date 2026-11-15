@@ -140,6 +140,13 @@ class MainActivity : AppCompatActivity() {
             delay(1200)
             voiceManager.speak("민석님, 안녕하세요! Pleos 출퇴근 맞춤 케어를 시작합니다.")
         }
+
+        if (intent?.getBooleanExtra("auto_demo", false) == true) {
+            lifecycleScope.launch {
+                delay(2200)
+                runJudgeDemoTour()
+            }
+        }
     }
 
     /**

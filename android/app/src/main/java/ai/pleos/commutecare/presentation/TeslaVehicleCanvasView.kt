@@ -40,7 +40,10 @@ class TeslaVehicleCanvasView @JvmOverloads constructor(
 
     private var animPhase: Float = 0f
     private var lastFrameNanos: Long = 0L
+    private var lastDrawNanos: Long = 0L
     private var isAnimating: Boolean = false
+    private var cachedBodyShaderWidth: Float = -1f
+    private var cachedBodyShaderHeight: Float = -1f
 
     private val roadPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         style = Paint.Style.STROKE
@@ -155,7 +158,13 @@ class TeslaVehicleCanvasView @JvmOverloads constructor(
             val lerpFactor = (dtSec * 8f).coerceIn(0f, 1f)
             displayTempC += (targetTempC - displayTempC) * lerpFactor
             displaySpeedKmh += (speedKmh - displaySpeedKmh) * lerpFactor
-            invalidate()
+            // 소프트웨어 렌더러(에뮬레이터) ANR 방지를 위해 최소 32ms(~30fps) 간격으로 갱신
+            if (frameTimeNanos - lastDrawNanos >= 32_000_000L) {
+                lastDrawNanos = frameTimeNanos
+                invalidate()
+            }
+        } else {
+            lastDrawNanos = frameTimeNanos
         }
         lastFrameNanos = frameTimeNanos
         Choreographer.getInstance().postFrameCallback(this)
@@ -250,12 +259,16 @@ class TeslaVehicleCanvasView @JvmOverloads constructor(
         )
         bodyPath.close()
 
-        bodyFillPaint.shader = LinearGradient(
-            left, top, right, bottom,
-            Color.argb(175, 255, 255, 255),
-            Color.argb(135, 219, 234, 254),
-            Shader.TileMode.CLAMP
-        )
+        if (cachedBodyShaderWidth != carW || cachedBodyShaderHeight != carH) {
+            cachedBodyShaderWidth = carW
+            cachedBodyShaderHeight = carH
+            bodyFillPaint.shader = LinearGradient(
+                left, top, right, bottom,
+                Color.argb(175, 255, 255, 255),
+                Color.argb(135, 219, 234, 254),
+                Shader.TileMode.CLAMP
+            )
+        }
         canvas.drawPath(bodyPath, bodyFillPaint)
         canvas.drawPath(bodyPath, bodyStrokePaint)
 
