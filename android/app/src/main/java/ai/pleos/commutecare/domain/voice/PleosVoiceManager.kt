@@ -454,6 +454,47 @@ class PleosVoiceManager(private val context: Context) {
     }
 
     /**
+     * @brief 사전 생성된 사용자 TTS 음성 파일(res/raw)을 차량 오디오로 재생하고 STT 인식 파이프라인에 전달합니다.
+     * @param rawResId res/raw 내 사용자 음성 wav 리소스 ID
+     * @param transcript 해당 음성의 텍스트 전사본
+     * @return Unit
+     */
+    fun playPreRecordedUserVoice(rawResId: Int, transcript: String) {
+        stopSpeaking()
+        isListening = true
+        mainHandler.post {
+            onListeningStateChangeListener?.invoke(true, "민석님 음성 인식 중: \"$transcript\"")
+        }
+        try {
+            val mp = android.media.MediaPlayer.create(context, rawResId)
+            if (mp != null) {
+                mp.setOnCompletionListener { player ->
+                    player.release()
+                    isListening = false
+                    mainHandler.post {
+                        onListeningStateChangeListener?.invoke(false, transcript)
+                        onVoiceCommandRecognizedListener?.invoke(transcript)
+                    }
+                }
+                mp.start()
+            } else {
+                isListening = false
+                mainHandler.postDelayed({
+                    onListeningStateChangeListener?.invoke(false, transcript)
+                    onVoiceCommandRecognizedListener?.invoke(transcript)
+                }, 1800L)
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "playPreRecordedUserVoice fallback: ${e.message}")
+            isListening = false
+            mainHandler.postDelayed({
+                onListeningStateChangeListener?.invoke(false, transcript)
+                onVoiceCommandRecognizedListener?.invoke(transcript)
+            }, 1800L)
+        }
+    }
+
+    /**
      * @brief 액티비티 종료 시 TTS 및 STT 자원을 안전하게 해제합니다.
      */
     fun release() {

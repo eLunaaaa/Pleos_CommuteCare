@@ -134,17 +134,24 @@ class MainActivity : AppCompatActivity() {
         initVehicleManager()
         initLocationManager()
         checkSmartCommuteIntent()
+        playOceanBootSequence()
 
-        // 탑승 시작 시 운전자 개인화 환영 음성
-        lifecycleScope.launch {
-            delay(1200)
-            voiceManager.speak("민석님, 안녕하세요! Pleos 출퇴근 맞춤 케어를 시작합니다.")
-        }
-
-        if (intent?.getBooleanExtra("auto_demo", false) == true) {
+        val scenarioExtra = intent?.getIntExtra("demo_scenario", 0) ?: 0
+        if (scenarioExtra in 1..6) {
             lifecycleScope.launch {
-                delay(2200)
-                runJudgeDemoTour()
+                delay(3200)
+                runScenarioDemo(scenarioExtra)
+            }
+        } else if (intent?.getBooleanExtra("auto_demo", false) == true) {
+            lifecycleScope.launch {
+                delay(3200)
+                runScenarioDemo(1)
+            }
+        } else {
+            // 탑승 시작 시 운전자 개인화 환영 음성 (부팅 스플래시 직후)
+            lifecycleScope.launch {
+                delay(2900)
+                voiceManager.speak("민석님, 안녕하세요! 모빌리티 비서 플로입니다.")
             }
         }
     }
@@ -187,12 +194,14 @@ class MainActivity : AppCompatActivity() {
         voiceManager.onSpeechStateChangeListener = { isSpeaking, speakingText ->
             runOnUiThread {
                 if (isSpeaking) {
-                    binding.tvVoiceStatus.text = "음성 안내 중"
+                    binding.tvVoiceStatus.text = "플로 발화 중"
                     binding.btnVoiceStop.visibility = View.VISIBLE
+                    if (!speakingText.isNullOrBlank()) {
+                        binding.tvAiBriefing.text = "[플로] $speakingText"
+                    }
                 } else {
                     if (!voiceManager.isListening) {
-                        binding.tvVoiceStatus.text = "음성 비서 대기 중"
-                        binding.btnVoiceStop.visibility = View.GONE
+                        binding.tvVoiceStatus.text = "플로 대기 중"
                     }
                 }
             }
@@ -202,14 +211,17 @@ class MainActivity : AppCompatActivity() {
         voiceManager.onListeningStateChangeListener = { isListening, partialText ->
             runOnUiThread {
                 if (isListening) {
-                    binding.tvVoiceStatus.text = partialText ?: "듣는 중..."
-                    binding.btnVoiceMic.text = "중지"
+                    binding.tvVoiceStatus.text = partialText ?: "플로가 듣는 중..."
+                    if (!partialText.isNullOrBlank()) {
+                        binding.tvAiBriefing.text = "[민석님] $partialText"
+                    }
+                    binding.btnVoiceMic.text = "듣는 중"
                     binding.btnVoiceMic.setBackgroundResource(ai.pleos.commutecare.R.drawable.bg_button_orange)
                 } else {
-                    binding.btnVoiceMic.text = "음성 명령"
-                    binding.btnVoiceMic.setBackgroundResource(ai.pleos.commutecare.R.drawable.bg_button_blue)
+                    binding.btnVoiceMic.text = "플로야"
+                    binding.btnVoiceMic.setBackgroundResource(ai.pleos.commutecare.R.drawable.bg_glass_apple_blue_pill)
                     if (!voiceManager.isSpeaking) {
-                        binding.tvVoiceStatus.text = "음성 비서 대기 중"
+                        binding.tvVoiceStatus.text = "플로 대기 중"
                     }
                 }
             }
@@ -381,7 +393,7 @@ class MainActivity : AppCompatActivity() {
         }
 
         binding.btnJudgeDemoTour.setOnClickListener {
-            runJudgeDemoTour()
+            runScenarioDemo(1)
         }
 
         // YouTube Music 재생 버튼 바인딩
@@ -1075,6 +1087,245 @@ class MainActivity : AppCompatActivity() {
             updateAcousticEnvironment(currentSpeedKmh)
             binding.tvLocationGps.text = "GPS: %.4f, %.4f".format(currentLat, currentLon)
             delay(stepDelayMs)
+        }
+    }
+
+    /**
+     * @brief 앱 시작 시 바다 수면에서 마스코트 상어 '플로(Plo)'가 떠오르며 Pleos Flo 브랜드를 표시하는 부팅 애니메이션을 수행한다.
+     * @return Unit
+     */
+    private fun playOceanBootSequence() {
+        binding.layoutBootSplash.visibility = View.VISIBLE
+        binding.layoutBootSplash.alpha = 1f
+        binding.ivBootSharkMascot.translationY = 180f
+        binding.ivBootSharkMascot.scaleX = 0.65f
+        binding.ivBootSharkMascot.scaleY = 0.65f
+        binding.ivBootSharkMascot.alpha = 0f
+        binding.tvBootBrandTitle.alpha = 0f
+        binding.tvBootBrandTitle.translationY = 40f
+        binding.tvBootBrandSubtitle.alpha = 0f
+
+        binding.ivBootSharkMascot.animate()
+            .translationY(0f)
+            .scaleX(1.0f)
+            .scaleY(1.0f)
+            .alpha(1.0f)
+            .setDuration(1300L)
+            .setInterpolator(android.view.animation.OvershootInterpolator(1.35f))
+            .start()
+
+        binding.tvBootBrandTitle.animate()
+            .alpha(1.0f)
+            .translationY(0f)
+            .setStartDelay(350L)
+            .setDuration(750L)
+            .start()
+
+        binding.tvBootBrandSubtitle.animate()
+            .alpha(1.0f)
+            .setStartDelay(600L)
+            .setDuration(700L)
+            .start()
+
+        lifecycleScope.launch {
+            delay(2500L)
+            binding.layoutBootSplash.animate()
+                .alpha(0f)
+                .setDuration(500L)
+                .withEndAction {
+                    binding.layoutBootSplash.visibility = View.GONE
+                    binding.oceanBootView.stopAnimation()
+                }
+                .start()
+        }
+    }
+
+    /**
+     * @brief 출근/퇴근/여행 × 날씨(맑음/악천후) 6대 시나리오별 양방향 음성 대화·공조·음악·실시간 주행을 시연한다.
+     * @param scenarioId 시나리오 번호 (1~6)
+     * @return Unit
+     */
+    private fun runScenarioDemo(scenarioId: Int) {
+        demoJob?.cancel()
+        demoJob = lifecycleScope.launch {
+            try {
+                isUxRestricted = false
+                applyDrivingRestrictions(false)
+                isCareActive = true
+                binding.btnJudgeDemoTour.isEnabled = false
+
+                data class ScenarioSpec(
+                    val badge: String,
+                    val greetingText: String,
+                    val weatherLabel: String,
+                    val tempSetting: Float,
+                    val rawVoiceRes: Int,
+                    val userTranscript: String,
+                    val ploReply: String,
+                    val naviTitle: String,
+                    val musicLabel: String,
+                    val quickQuestion: String,
+                    val quickYes: String,
+                    val fromLat: Double,
+                    val fromLon: Double,
+                    val toLat: Double,
+                    val toLon: Double,
+                    val cruiseSpeed: Float,
+                    val maxSpeed: Float
+                )
+
+                val spec = when (scenarioId) {
+                    1 -> ScenarioSpec(
+                        badge = "시나리오 1 · 출근(맑음)",
+                        greetingText = "민석님 안녕하세요",
+                        weatherLabel = "18.5°C · 맑음",
+                        tempSetting = 21.0f,
+                        rawVoiceRes = ai.pleos.commutecare.R.raw.user_voice_1_morning_clear,
+                        userTranscript = "플로야, 오늘 출근길 날씨랑 일정 브리핑 해주고 신나는 노래 틀어줘.",
+                        ploReply = "민석님, 오늘 서울은 18.5도 맑음입니다! 실내를 21도로 맞추고 9시 30분 주간 회의 브리핑과 출근 에너지 음악을 재생합니다.",
+                        naviTitle = "출근 · 현대차 양재 본사",
+                        musicLabel = "Viva La Vida · Coldplay (출근 에너지)",
+                        quickQuestion = "고속 구간(85 km/h) 진입: 주간 회의 안건을 요약할까요?",
+                        quickYes = "안건 요약 듣기",
+                        fromLat = 37.5172, fromLon = 127.0473,
+                        toLat = 37.4640, toLon = 127.0434,
+                        cruiseSpeed = 52f, maxSpeed = 85f
+                    )
+                    2 -> ScenarioSpec(
+                        badge = "시나리오 2 · 출근(우천)",
+                        greetingText = "민석님 안녕하세요",
+                        weatherLabel = "11.0°C · 폭우",
+                        tempSetting = 24.5f,
+                        rawVoiceRes = ai.pleos.commutecare.R.raw.user_voice_2_morning_rain,
+                        userTranscript = "플로야, 밖에 비 오는데 실내 따뜻하게 해주고 출근 브리핑 해줘.",
+                        ploReply = "현재 11도 강한 비가 내립니다. 실내를 포근한 24.5도 웜 앰버 공조로 높이고, 빗길 노이즈 마스킹 EQ와 출근 일정을 안내합니다.",
+                        naviTitle = "빗길 출근 · 현대차 본사",
+                        musicLabel = "Sunday Morning · Maroon 5 (빗길 감성 EQ)",
+                        quickQuestion = "우천 노면 소음 감지: 열선 시트 2단을 함께 켤까요?",
+                        quickYes = "열선 2단 켜기",
+                        fromLat = 37.5172, fromLon = 127.0473,
+                        toLat = 37.4640, toLon = 127.0434,
+                        cruiseSpeed = 42f, maxSpeed = 68f
+                    )
+                    3 -> ScenarioSpec(
+                        badge = "시나리오 3 · 퇴근(맑음)",
+                        greetingText = "민석님 수고하셨어요",
+                        weatherLabel = "16.0°C · 맑음",
+                        tempSetting = 22.0f,
+                        rawVoiceRes = ai.pleos.commutecare.R.raw.user_voice_3_evening_clear,
+                        userTranscript = "플로야, 이제 집으로 퇴근할게. 공조 쾌적하게 맞추고 음악 틀어줘.",
+                        ploReply = "오늘 하루도 고생 많으셨어요 민석님! 성수동 자택으로 퇴근 경로를 안내하고 22도 릴랙스 공조와 저녁 드라이브 팝을 틀어드릴게요.",
+                        naviTitle = "퇴근 · 성수동 자택",
+                        musicLabel = "Sunset Drive · Lofi Chill (퇴근 힐링)",
+                        quickQuestion = "올림픽대로 정체 구간: 우회 경로와 힐링 조명을 켤까요?",
+                        quickYes = "릴랙스 조명 적용",
+                        fromLat = 37.4640, fromLon = 127.0434,
+                        toLat = 37.5446, toLon = 127.0560,
+                        cruiseSpeed = 48f, maxSpeed = 78f
+                    )
+                    4 -> ScenarioSpec(
+                        badge = "시나리오 4 · 퇴근(우천)",
+                        greetingText = "민석님 수고하셨어요",
+                        weatherLabel = "9.5°C · 우천",
+                        tempSetting = 25.0f,
+                        rawVoiceRes = ai.pleos.commutecare.R.raw.user_voice_4_evening_rain,
+                        userTranscript = "플로야, 비 때문에 퇴근길 피곤하네. 습기 제거하고 잔잔한 노래 틀어줘.",
+                        ploReply = "비 오는 퇴근길 안전 운행하세요! 김서림 방지와 25도 온풍을 가동하고, 피로를 풀어줄 잔잔한 어쿠스틱 재즈를 재생합니다.",
+                        naviTitle = "우천 퇴근 · 성수동 자택",
+                        musicLabel = "Rainy Night · Acoustic Trio (우천 릴랙스)",
+                        quickQuestion = "야간 빗길 감속 구간: 실내 온도를 0.5도 더 높일까요?",
+                        quickYes = "25.5°C로 상향",
+                        fromLat = 37.4640, fromLon = 127.0434,
+                        toLat = 37.5446, toLon = 127.0560,
+                        cruiseSpeed = 38f, maxSpeed = 62f
+                    )
+                    5 -> ScenarioSpec(
+                        badge = "시나리오 5 · 여행(맑음)",
+                        greetingText = "민석님 즐거운 주말이에요",
+                        weatherLabel = "20.0°C · 쾌청",
+                        tempSetting = 20.5f,
+                        rawVoiceRes = ai.pleos.commutecare.R.raw.user_voice_5_travel_clear,
+                        userTranscript = "플로야, 속초 리조트로 출발하자. 여행 모드 켜고 드라이브 음악 틀어줘.",
+                        ploReply = "신나는 속초 여행이네요! 속초 델피노 리조트로 여행 모드를 켜고, 시원한 20.5도 해변 공조와 청량한 드라이브 뮤직을 재생합니다.",
+                        naviTitle = "여행 · 속초 델피노 리조트",
+                        musicLabel = "Ocean Breeze · Synthwave (동해안 드라이브)",
+                        quickQuestion = "양양 고속도로 진입(92 km/h): 속초 해변 맛집을 추천할까요?",
+                        quickYes = "맛집 브리핑 듣기",
+                        fromLat = 37.5172, fromLon = 127.0473,
+                        toLat = 38.2107, toLon = 128.5135,
+                        cruiseSpeed = 60f, maxSpeed = 92f
+                    )
+                    else -> ScenarioSpec(
+                        badge = "시나리오 6 · 여행(눈/비)",
+                        greetingText = "민석님 안전 여행 되세요",
+                        weatherLabel = "2.5°C · 진눈깨비",
+                        tempSetting = 25.5f,
+                        rawVoiceRes = ai.pleos.commutecare.R.raw.user_voice_6_travel_rain,
+                        userTranscript = "플로야, 강원도에 눈비 온다는데 안전하게 여행 모드 켜고 안내해줘.",
+                        ploReply = "미시령 구간 진눈깨비가 관측됩니다! 실내를 25.5도로 따뜻하게 데우고, 감속 안전 안내와 포근한 인디 포크 음악을 준비했습니다.",
+                        naviTitle = "설경 여행 · 속초 델피노 (감속)",
+                        musicLabel = "Warm Cabin · Indie Folk (설경 안전 드라이브)",
+                        quickQuestion = "결빙 주의 구간(58 km/h): 안전 차간거리 안내를 유지할까요?",
+                        quickYes = "안전 모드 유지",
+                        fromLat = 37.5172, fromLon = 127.0473,
+                        toLat = 38.2107, toLon = 128.5135,
+                        cruiseSpeed = 42f, maxSpeed = 58f
+                    )
+                }
+
+                // 1) 초기 상태 및 플로 첫 인사 표시
+                binding.btnJudgeDemoTour.text = spec.badge
+                binding.tvGreetingTitle.text = spec.greetingText
+                binding.tvWeatherDetails.text = spec.weatherLabel
+                binding.tvNaviStatus.text = "플로(Plo) 호출 대기 중"
+                binding.tvAiBriefing.text = "[플로] \"${spec.greetingText}! 모빌리티 비서 플로입니다. 무엇을 도와드릴까요?\""
+                voiceManager.speak("${spec.greetingText}! 모빌리티 비서 플로입니다.")
+                delay(2800L)
+
+                // 2) 사전 녹음된 사용자 TTS 음성 파일 재생 & 실시간 음성 인식 표시
+                voiceManager.playPreRecordedUserVoice(spec.rawVoiceRes, spec.userTranscript)
+                binding.tvAiBriefing.text = "[민석님 음성 인식 중]\n\"${spec.userTranscript}\""
+                delay(4200L)
+
+                // 3) 플로(Plo) 응답 TTS 발화 + 공조 온도·목적지·음악 즉시 적용
+                currentTargetTemp = spec.tempSetting
+                binding.tvTargetTempDisplay.text = "${currentTargetTemp}°C"
+                binding.tvNaviStatus.text = spec.naviTitle
+                binding.tvAudioInfo.text = spec.musicLabel
+                binding.teslaVehicleView.updateTelemetry(currentTargetTemp, true, 0f)
+                binding.tvAiBriefing.text = "[플로 응답]\n\"${spec.ploReply}\""
+                voiceManager.speak(spec.ploReply)
+                delay(4500L)
+
+                // 4) 실제 주행 시작 (GPS 이동 + 정차 -> 순항 속도 가속)
+                val midLat = (spec.fromLat + spec.toLat) * 0.5
+                val midLon = (spec.fromLon + spec.toLon) * 0.5
+                animateDemoDrive(spec.fromLat, spec.fromLon, midLat, midLon, 0f, spec.cruiseSpeed, steps = 8, stepDelayMs = 350L)
+
+                // 5) 고속/주요 구간 진입 & 퀵리플라이 팝업 표시 및 자동 수락
+                animateDemoDrive(midLat, midLon, spec.toLat, spec.toLon, spec.cruiseSpeed, spec.maxSpeed, steps = 8, stepDelayMs = 350L)
+                showQuickReplyPanel(
+                    question = spec.quickQuestion,
+                    yesLabel = spec.quickYes,
+                    noLabel = "현재 유지",
+                    altLabel = "음악 볼륨 보정",
+                    onYes = { dismissQuickReply() },
+                    onNo = { dismissQuickReply() },
+                    onAlt = { dismissQuickReply() }
+                )
+                delay(3200L)
+                dismissQuickReply()
+                binding.tvAiBriefing.text = "[플로] \"${spec.quickYes} 설정을 완료했습니다. 목적지까지 쾌적하게 모실게요!\""
+
+                // 6) 감속 및 안정 순항 마무리
+                animateDemoDrive(spec.toLat, spec.toLon, spec.toLat, spec.toLon, spec.maxSpeed, 0f, steps = 6, stepDelayMs = 300L)
+                delay(1500L)
+            } finally {
+                currentSpeedKmh = 0f
+                binding.btnJudgeDemoTour.isEnabled = true
+                binding.btnJudgeDemoTour.text = "시연 투어"
+                updateSpeedDisplay()
+            }
         }
     }
 
