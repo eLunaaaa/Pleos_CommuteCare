@@ -98,8 +98,16 @@ class CommuteVehicleManager(
                     setupSpeedSubscription(carConnected)
                 }
             }
+            // Pleos 에뮬레이터 등 AAOS car_service 미탑재 환경에서는 정차 UI를 잠금 해제한다.
+            handler.postDelayed({
+                if (uxManager == null) {
+                    log("AAOS Car Service 미응답 -> 정차 기본 모드 활성화")
+                    onRestrictionChanged(false)
+                }
+            }, 1500L)
         } catch (e: Exception) {
             log("AAOS Car Service 연결 예외: ${e.message}")
+            onRestrictionChanged(false)
         }
     }
 

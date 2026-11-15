@@ -4,9 +4,9 @@
     android:layout_height="match_parent"
     android:background="@drawable/bg_screen_blue_white"
     android:orientation="vertical"
-    android:paddingStart="96dp"
+    android:paddingStart="24dp"
     android:paddingTop="18dp"
-    android:paddingEnd="28dp"
+    android:paddingEnd="24dp"
     android:paddingBottom="18dp">
 
     <!-- 상단 Apple 글래스모픽 상태 바 -->

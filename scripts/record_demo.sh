@@ -27,7 +27,7 @@ fi
 # 2. MainActivity를 최상단 포커스로 가져오기
 echo "📱 [1/5] MainActivity 포커스 활성화 중..."
 "${ADB}" shell am start --user 10 -n ai.pleos.commutecare/.presentation.MainActivity --activity-brought-to-front
-sleep 2
+sleep 5
 
 # 3. 기존 원격 녹화 파일 정리
 "${ADB}" shell rm -f "${REMOTE_FILE}"
@@ -39,9 +39,9 @@ RECORD_PID=$!
 
 sleep 3
 
-# 5. 심사 5단계 원클릭 투어 버튼 클릭 ([2369, 108][2507, 160] -> x=2438, y=134)
+# 5. 심사 5단계 원클릭 투어 버튼 클릭 ([2373, 108][2511, 160] -> x=2442, y=134)
 echo "[3/5] '시연 투어' 자동 트리거..."
-"${ADB}" shell input tap 2438 134
+"${ADB}" shell input tap 2442 134
 
 echo "⏳ [4/5] 5단계 시연 진행 대기 중 (약 26초)..."
 # 1단계: 출근 의도 자율 추론 (4s)
