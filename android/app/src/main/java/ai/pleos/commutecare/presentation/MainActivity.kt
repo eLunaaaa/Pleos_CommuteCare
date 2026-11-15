@@ -139,19 +139,37 @@ class MainActivity : AppCompatActivity() {
         val scenarioExtra = intent?.getIntExtra("demo_scenario", 0) ?: 0
         if (scenarioExtra in 1..6) {
             lifecycleScope.launch {
-                delay(3200)
+                delay(3600)
                 runScenarioDemo(scenarioExtra)
             }
         } else if (intent?.getBooleanExtra("auto_demo", false) == true) {
             lifecycleScope.launch {
-                delay(3200)
+                delay(3600)
                 runScenarioDemo(1)
             }
         } else {
             // 탑승 시작 시 운전자 개인화 환영 음성 (부팅 스플래시 직후)
             lifecycleScope.launch {
-                delay(2900)
+                delay(3400)
                 voiceManager.speak("민석님, 안녕하세요! 모빌리티 비서 플로입니다.")
+            }
+        }
+    }
+
+    /**
+     * @brief 이미 실행 중인 액티비티에 새로운 시나리오 인텐트가 전달될 때 바다 상어 부팅부터 즉시 재실행한다.
+     * @param intent 전달된 새 인텐트
+     * @return Unit
+     */
+    override fun onNewIntent(intent: android.content.Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        val scenarioExtra = intent.getIntExtra("demo_scenario", 0)
+        if (scenarioExtra in 1..6) {
+            playOceanBootSequence()
+            lifecycleScope.launch {
+                delay(3600)
+                runScenarioDemo(scenarioExtra)
             }
         }
     }
@@ -1095,8 +1113,10 @@ class MainActivity : AppCompatActivity() {
      * @return Unit
      */
     private fun playOceanBootSequence() {
+        binding.layoutBootSplash.animate().cancel()
         binding.layoutBootSplash.visibility = View.VISIBLE
         binding.layoutBootSplash.alpha = 1f
+        binding.oceanBootView.startAnimation()
         binding.ivBootSharkMascot.translationY = 180f
         binding.ivBootSharkMascot.scaleX = 0.65f
         binding.ivBootSharkMascot.scaleY = 0.65f
@@ -1128,10 +1148,10 @@ class MainActivity : AppCompatActivity() {
             .start()
 
         lifecycleScope.launch {
-            delay(2500L)
+            delay(3100L)
             binding.layoutBootSplash.animate()
                 .alpha(0f)
-                .setDuration(500L)
+                .setDuration(450L)
                 .withEndAction {
                     binding.layoutBootSplash.visibility = View.GONE
                     binding.oceanBootView.stopAnimation()

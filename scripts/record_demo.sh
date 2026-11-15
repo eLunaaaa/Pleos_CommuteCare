@@ -82,6 +82,10 @@ NAMES=(
     "demo_6_travel_rain.mp4"
 )
 
+# 액티비티를 미리 포그라운드에 예열하여 콜드스타트 검은 화면 없이 부팅 스플래시부터 즉시 녹화
+"${ADB}" shell am start --user 10 -n ai.pleos.commutecare/.presentation.MainActivity >/dev/null
+sleep 4
+
 for idx in 1 2 3 4 5 6; do
     OUT_NAME="${NAMES[$idx]}"
     REMOTE_MP4="/sdcard/raw_scenario_${idx}.mp4"
@@ -90,16 +94,14 @@ for idx in 1 2 3 4 5 6; do
 
     echo "----------------------------------------------------------"
     echo "🎬 [${idx}/6] ${OUT_NAME} 녹화 중 (바다 상어 부팅 + 음성 대화 + 주행)..."
-    "${ADB}" shell am force-stop ai.pleos.commutecare
     "${ADB}" shell rm -f "${REMOTE_MP4}"
-    sleep 1
 
     # 부팅 스플래시(상어 수면 상승)부터 빠짐없이 녹화하기 위해 screenrecord 선시작
     "${ADB}" shell screenrecord --size 1280x720 --bit-rate 4000000 --time-limit 29 "${REMOTE_MP4}" &
     REC_PID=$!
     sleep 1
 
-    "${ADB}" shell am start --user 10 -n ai.pleos.commutecare/.presentation.MainActivity --ei demo_scenario "${idx}" >/dev/null
+    "${ADB}" shell am start --user 10 --activity-single-top -n ai.pleos.commutecare/.presentation.MainActivity --ei demo_scenario "${idx}" >/dev/null
     sleep 29
     wait "${REC_PID}" 2>/dev/null || true
     sleep 1

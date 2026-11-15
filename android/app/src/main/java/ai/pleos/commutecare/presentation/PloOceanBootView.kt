@@ -77,6 +77,17 @@ class PloOceanBootView @JvmOverloads constructor(
     }
 
     /**
+     * @brief 부팅 오버레이가 다시 표시될 때 바다 물결 애니메이션을 재시작한다.
+     * @return Unit
+     */
+    fun startAnimation() {
+        if (!isRunning) {
+            isRunning = true
+            Choreographer.getInstance().postFrameCallback(this)
+        }
+    }
+
+    /**
      * @brief 부팅 오버레이가 숨겨질 때 애니메이션을 즉시 중지하여 CPU 자원을 절약한다.
      * @return Unit
      */
